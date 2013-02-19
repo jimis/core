@@ -166,11 +166,17 @@ void CheckAutoBootstrap()
 
         if (GetExecOutput(execstring, buffer, false))
         {
-            printf(" -> The agent might leave errors/messages for you as email to root@localhost.\n");
+            printf(" -> Executed cf-execd --once\n");
+            if (buffer[0] != '\0')
+                printf(" ->   Output: %s", buffer);
+            printf(" ->   The agent might leave errors/messages for you as email to root@localhost.\n");
         }
         else
         {
-            printf(" !! I was not able to execute %s -- this is not necessarily fatal, but it is unexpected\n", execstring);
+            printf(" !! FAILED to execute %s -- bootstrapping will continue nevertheless.\n",
+                   execstring);
+            if (buffer[0] != '\0')
+                printf(" !!   Output: %s\n", buffer);
         }
 
     }
