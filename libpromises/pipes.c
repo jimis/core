@@ -269,7 +269,7 @@ FILE *cf_popen(const char *command, char *type)
         int ret = execv(argv[0], argv);
 
         /* UNREACHABLE unless exec() fails. */
-        CfOut(OUTPUT_LEVEL_ERROR, "execv", "Couldn't run %s", argv[0]);
+        CfOut(OUTPUT_LEVEL_ERROR, "execv", "Couldn't exec %s", argv[0]);
         write(errpipe[1], "FAIL\n", 6);
         close(errpipe[1]);
         _exit(ret);
