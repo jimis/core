@@ -217,14 +217,15 @@ FILE *cf_popen(const char *command, char *type)
     CfDebug("cf_popen(%s)\n", command);
 
     /* Create special pipe for reporting exec()'s failure. If exec() succeeds
-     * then pipe will be closed empty. On MinGW there is no O_CLOEXEC so
-     * exec() failure will be missed. */
+     * then pipe will be closed empty. */
     if (pipe(errpipe) == -1)
     {
         return NULL;
     }
     int oldflags = fcntl(errpipe[1], F_GETFD, 0);
-    fcntl(errpipe[1], F_SETFD, oldflags | O_CLOEXEC);
+    #ifdef O_CLOEXEC
+        fcntl(errpipe[1], F_SETFD, oldflags | O_CLOEXEC);
+    #endif
 
     pid = CreatePipeAndFork(type, pd);
     if (pid == -1) {
@@ -234,6 +235,9 @@ FILE *cf_popen(const char *command, char *type)
     if (pid == 0)                                       /* child */
     {
         close(errpipe[0]);
+        #ifndef O_CLOEXEC /* Don't detect exec() failure if O_CLOEXEC unsupported */
+            close(errpipe[1]);
+        #endif
 
         switch (*type)
         {
