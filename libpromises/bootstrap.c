@@ -173,7 +173,7 @@ void CheckAutoBootstrap()
         }
         else
         {
-            printf(" !! FAILED to execute %s -- bootstrapping will continue nevertheless.\n",
+            printf(" !! FAILED to execute %s, bootstrapping will continue nevertheless.\n",
                    execstring);
             if (buffer[0] != '\0')
                 printf(" !!   Output: %s\n", buffer);
