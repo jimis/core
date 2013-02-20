@@ -23,6 +23,8 @@
   included file COSL.txt.
 */
 
+#include <errno.h>
+
 #include "exec_tools.h"
 
 #include "files_names.h"
@@ -46,6 +48,7 @@ int GetExecOutput(const char *command, char *buffer, int useshell)
 
     CfDebug("GetExecOutput(%s,%s) - use shell = %d\n", command, buffer, useshell);
 
+    errno = 0;
     if (useshell)
     {
         pp = cf_popen_sh(command, "r");
@@ -57,7 +60,11 @@ int GetExecOutput(const char *command, char *buffer, int useshell)
 
     if (pp == NULL)
     {
-        CfOut(OUTPUT_LEVEL_ERROR, "cf_popen", "Couldn't open pipe to command %s\n", command);
+        if (errno == 0)
+            /* If exec() failed in child process we get no error message. */
+            CfOut(OUTPUT_LEVEL_ERROR, NULL, "Couldn't open pipe to command %s\n", command);
+        else
+            CfOut(OUTPUT_LEVEL_ERROR, "cf_popen", "Couldn't open pipe to command %s\n", command);
         return false;
     }
 

@@ -290,7 +290,6 @@ FILE *cf_popen(const char *command, char *type)
         }
         else if (nchars < 0)                   /* read() failed */
         {
-            CfOut(OUTPUT_LEVEL_ERROR, "read", "Couldn't read from child's pipe");
             return NULL;
         }
 
