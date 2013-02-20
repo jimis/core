@@ -23,8 +23,6 @@
 
 */
 
-#include <assert.h>
-
 #include "pipes.h"
 
 #include "cfstream.h"
@@ -32,6 +30,8 @@
 #include "exec_tools.h"
 #include "rlist.h"
 #include "policy.h"
+
+#include <assert.h>
 
 #ifndef __MINGW32__
 static int CfSetuid(uid_t uid, gid_t gid);

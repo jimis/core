@@ -23,8 +23,6 @@
   included file COSL.txt.
 */
 
-#include <errno.h>
-
 #include "exec_tools.h"
 
 #include "files_names.h"
@@ -35,6 +33,8 @@
 #include "string_lib.h"
 #include "misc_lib.h"
 #include "generic_agent.h" // CloseLog
+
+#include <errno.h>
 
 /********************************************************************/
 
