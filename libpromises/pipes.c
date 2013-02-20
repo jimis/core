@@ -23,6 +23,8 @@
 
 */
 
+#include <assert.h>
+
 #include "pipes.h"
 
 #include "cfstream.h"
@@ -207,19 +209,32 @@ static pid_t CreatePipeAndFork(char *type, int *pd)
 FILE *cf_popen(const char *command, char *type)
 {
     int pd[2];
+    int errpipe[2];
     char **argv;
     pid_t pid;
     FILE *pp = NULL;
 
     CfDebug("cf_popen(%s)\n", command);
 
+    /* Create special pipe for reporting exec()'s failure. If exec() succeeds
+     * then pipe will be closed empty. On MinGW there is no O_CLOEXEC so
+     * exec() failure will be missed. */
+    if (pipe(errpipe) == -1)
+    {
+        return NULL;
+    }
+    int oldflags = fcntl(errpipe[1], F_GETFD, 0);
+    fcntl(errpipe[1], F_SETFD, oldflags | O_CLOEXEC);
+
     pid = CreatePipeAndFork(type, pd);
     if (pid == -1) {
         return NULL;
     }
 
-    if (pid == 0)
+    if (pid == 0)                                       /* child */
     {
+        close(errpipe[0]);
+
         switch (*type)
         {
         case 'r':
@@ -228,8 +243,9 @@ FILE *cf_popen(const char *command, char *type)
 
             if (pd[1] != 1)
             {
-                dup2(pd[1], 1); /* Attach pp=pd[1] to our stdout */
-                dup2(pd[1], 2); /* Merge stdout/stderr */
+                /* Redirect child's stdout+stderr to the pipe. */
+                dup2(pd[1], 1);
+                dup2(pd[1], 2);
                 close(pd[1]);
             }
 
@@ -250,15 +266,34 @@ FILE *cf_popen(const char *command, char *type)
 
         argv = ArgSplitCommand(command);
 
-        if (execv(argv[0], argv) == -1)
+        int ret = execv(argv[0], argv);
+
+        /* UNREACHABLE unless exec() fails. */
+        CfOut(OUTPUT_LEVEL_ERROR, "execv", "Couldn't run %s", argv[0]);
+        write(errpipe[1], "FAIL\n", 6);
+        close(errpipe[1]);
+        _exit(ret);
+    }
+    else                                               /* parent */
+    {
+        close(errpipe[1]);
+        char tmpbuf[6];
+
+        /* If exec() succeeded, errpipe should be empty and closed. */
+        int nchars = read(errpipe[0], tmpbuf, sizeof(tmpbuf));
+        close(errpipe[0]);
+        if (nchars > 0)                        /* exec() failed */
         {
-            CfOut(OUTPUT_LEVEL_ERROR, "execv", "Couldn't run %s", argv[0]);
+            assert(strcmp(tmpbuf, "FAIL\n") == 0);
+            /* TODO close pd? */
+            return NULL;
+        }
+        else if (nchars < 0)                   /* read() failed */
+        {
+            CfOut(OUTPUT_LEVEL_ERROR, "read", "Couldn't read from child's pipe");
+            return NULL;
         }
 
-        _exit(1);
-    }
-    else
-    {
         switch (*type)
         {
         case 'r':
