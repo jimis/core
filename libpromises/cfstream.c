@@ -81,7 +81,7 @@ static void VLog(FILE *fh, OutputLevel level, const char *errstr, const char *fm
 
     AppendItem(&mess, buffer, NULL);
 
-    if ((errstr == NULL) || (strlen(errstr) > 0))
+    if ((errstr != NULL) && (strlen(errstr) > 0))
     {
         snprintf(output, CF_BUFSIZE - 1, " !!! System reports error for %s: \"%s\"", errstr, GetErrorStr());
         AppendItem(&mess, output, NULL);
