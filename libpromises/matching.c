@@ -55,6 +55,19 @@ static pcre *CompileRegExp(const char *regexp)
 
 /*********************************************************************/
 
+void ForceScalar(char *lval, char *rval)
+{
+    Rval retval;
+
+    if (GetVariable("match", lval, &retval) != DATA_TYPE_NONE)
+    {
+        DeleteVariable("match", lval);
+    }
+
+    NewScalar("match", lval, rval, DATA_TYPE_STRING);
+    CfDebug("Setting local variable \"match.%s\" context; $(%s) = %s\n", lval, lval, rval);
+}
+
 static int RegExMatchSubString(pcre *rx, const char *teststring, int *start, int *end)
 {
     int ovector[OVECCOUNT], i, rc;
@@ -79,7 +92,10 @@ static int RegExMatchSubString(pcre *rx, const char *teststring, int *start, int
 
                 strlcpy(substring, backref_start, MIN(CF_MAXVARSIZE, backref_len + 1));
                 snprintf(lval, 3, "%d", i);
-                ForceScalar(lval, substring);
+                if (THIS_AGENT_TYPE == AGENT_TYPE_AGENT)
+                {
+                    ForceScalar(lval, substring);
+                }
             }
         }
     }
@@ -451,7 +467,7 @@ int MatchPolicy(const char *camel, const char *haystack, Attributes a, const Pro
 
         for (rp = a.insert_match; rp != NULL; rp = rp->next)
         {
-            opt = String2InsertMatch(rp->item);
+            opt = InsertMatchTypeFromString(rp->item);
 
             /* Exact match can be done immediately */
 

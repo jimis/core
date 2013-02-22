@@ -29,11 +29,9 @@
 #include "assoc.h"
 
 void LoadSystemConstants(void);
-void ForceScalar(char *lval, char *rval);
 void NewScalar(const char *scope, const char *lval, const char *rval, DataType dt);
 void DeleteScalar(const char *scope, const char *lval);
 void NewList(const char *scope, const char *lval, void *rval, DataType dt);
-void DefaultVarPromise(Promise *pp);
 
 /*
  * Do not modify returned Rval, its contents may be constant and statically
@@ -51,7 +49,7 @@ const char *ExtractOuterCf3VarString(const char *str, char *substr);
 int UnresolvedArgs(Rlist *args);
 int UnresolvedVariables(CfAssoc *ap, char rtype);
 int IsQualifiedVariable(char *var);
-int IsCfList(char *type);
+
 int AddVariableHash(const char *scope, const char *lval, Rval rval, DataType dtype, const char *fname, int no);
 void DeRefListsInHashtable(char *scope, Rlist *list, Rlist *reflist);
 

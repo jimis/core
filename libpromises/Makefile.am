@@ -32,7 +32,6 @@ libpromises_la_SOURCES = \
         client_protocol.c client_protocol.h \
         communication.c communication.h \
         constants.c \
-        constraints.c constraints.h \
         conversion.c conversion.h \
         crypto.c crypto.h \
         dbm_api.c dbm_api.h dbm_lib.h dbm_lib.c dbm_priv.h \
@@ -72,7 +71,6 @@ libpromises_la_SOURCES = \
         mod_exec.c mod_exec.h \
         mod_files.c mod_files.h \
         mod_interfaces.c mod_interfaces.h \
-        mod_knowledge.c mod_knowledge.h \
         mod_measurement.c mod_measurement.h \
         mod_methods.c mod_methods.h \
         mod_outputs.c mod_outputs.h \

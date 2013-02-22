@@ -28,7 +28,6 @@
 #include "bootstrap.h"
 #include "sysinfo.h"
 #include "env_context.h"
-#include "constraints.h"
 #include "promises.h"
 #include "vars.h"
 #include "item_lib.h"
@@ -116,7 +115,7 @@ static const char *HINTS[sizeof(OPTIONS)/sizeof(OPTIONS[0])] =
     "Print basic information about changes made to the system, i.e. promises repaired",
     "Activate internal diagnostics (developers only)",
     "Run as a foreground processes (do not fork)",
-    "Run once and then exit",
+    "Run once and then exit (implies no-fork)",
     "Do not run as a service on windows - use this when running from a command shell (Cfengine Nova only)",
     "Set the internal value of LD_LIBRARY_PATH for child processes",
     NULL
@@ -132,7 +131,7 @@ int main(int argc, char *argv[])
     GenericAgentDiscoverContext(config, report_context);
 
     Policy *policy = NULL;
-    if (GenericAgentCheckPolicy(config, report_context, false))
+    if (GenericAgentCheckPolicy(config, false))
     {
         policy = GenericAgentLoadPolicy(config->agent_type, config, report_context);
     }
@@ -259,6 +258,7 @@ static GenericAgentConfig *CheckOpts(int argc, char **argv)
 
         case 'O':
             ONCE = true;
+            NO_FORK = true;
             break;
 
         case 'V':
@@ -360,60 +360,60 @@ void KeepPromises(Policy *policy, ExecConfig *config)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_mailfrom].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_MAILFROM].lval) == 0)
             {
                 free(config->mail_from_address);
                 config->mail_from_address = SafeStringDuplicate(retval.item);
                 CfDebug("mailfrom = %s\n", config->mail_from_address);
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_mailto].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_MAILTO].lval) == 0)
             {
                 free(config->mail_to_address);
                 config->mail_to_address = SafeStringDuplicate(retval.item);
                 CfDebug("mailto = %s\n", config->mail_to_address);
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_smtpserver].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_SMTPSERVER].lval) == 0)
             {
                 free(config->mail_server);
                 config->mail_server = SafeStringDuplicate(retval.item);
                 CfDebug("smtpserver = %s\n", config->mail_server);
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_execcommand].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_EXECCOMMAND].lval) == 0)
             {
                 free(config->exec_command);
                 config->exec_command = SafeStringDuplicate(retval.item);
                 CfDebug("exec_command = %s\n", config->exec_command);
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_agent_expireafter].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_AGENT_EXPIREAFTER].lval) == 0)
             {
-                config->agent_expireafter = Str2Int(retval.item);
+                config->agent_expireafter = IntFromString(retval.item);
                 CfDebug("agent_expireafter = %d\n", config->agent_expireafter);
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_executorfacility].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_EXECUTORFACILITY].lval) == 0)
             {
                 SetFacility(retval.item);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_mailmaxlines].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_MAILMAXLINES].lval) == 0)
             {
-                config->mail_max_lines = Str2Int(retval.item);
+                config->mail_max_lines = IntFromString(retval.item);
                 CfDebug("maxlines = %d\n", config->mail_max_lines);
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_splaytime].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_SPLAYTIME].lval) == 0)
             {
-                int time = Str2Int(RvalScalarValue(retval));
+                int time = IntFromString(RvalScalarValue(retval));
 
                 SPLAYTIME = (int) (time * SECONDS_PER_MINUTE * GetSplay());
             }
 
-            if (strcmp(cp->lval, CFEX_CONTROLBODY[cfex_schedule].lval) == 0)
+            if (strcmp(cp->lval, CFEX_CONTROLBODY[EXEC_CONTROL_SCHEDULE].lval) == 0)
             {
                 CfDebug("Loading user-defined schedule...\n");
                 DeleteItemList(SCHEDULE);
@@ -522,8 +522,6 @@ void StartServer(Policy *policy, GenericAgentConfig *config, ExecConfig *exec_co
 
     if (ONCE)
     {
-        CfOut(OUTPUT_LEVEL_VERBOSE, "", "Sleeping for splaytime %d seconds\n\n", SPLAYTIME);
-        sleep(SPLAYTIME);
         LocalExec(exec_config);
         CloseLog();
     }
@@ -665,7 +663,7 @@ static Reload CheckNewPromises(const char *input_file, const Rlist *input_files,
     {
         CfOut(OUTPUT_LEVEL_VERBOSE, "", " -> New promises detected...\n");
 
-        if (CheckPromises(input_file, report_context))
+        if (CheckPromises(input_file))
         {
             return RELOAD_FULL;
         }

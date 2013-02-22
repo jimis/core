@@ -33,7 +33,7 @@
 
 #include "misc_lib.h"
 #include "env_context.h"
-#include "constraints.h"
+#include "policy.h"
 #include "promises.h"
 #include "vars.h"
 #include "syntax.h"
@@ -283,10 +283,6 @@ static void MapIteratorsFromScalar(const char *scopeid, Rlist **scal, Rlist **it
                     strncpy(finalname, var, CF_BUFSIZE - 1);
                     qualified = false;
                 }
-
-                // Interlude for knowledge map creation add dependency
-
-                RegisterBundleDependence(absscope, pp);
 
                 // var is the expanded name of the variable in its native context
                 // finalname will be the mapped name in the local context "this."
@@ -649,7 +645,7 @@ void ExpandPromiseAndDo(AgentType agent, const char *scopeid, Promise *pp, Rlist
     Rlist *lol = NULL;
     Promise *pexp;
     const int cf_null_cutoff = 5;
-    char *handle = GetConstraintValue("handle", pp, RVAL_TYPE_SCALAR), v[CF_MAXVARSIZE];
+    char *handle = ConstraintGetRvalValue("handle", pp, RVAL_TYPE_SCALAR), v[CF_MAXVARSIZE];
     int cutoff = 0;
 
     lol = NewIterationContext(scopeid, listvars);
@@ -732,9 +728,9 @@ void ExpandPromiseAndDo(AgentType agent, const char *scopeid, Promise *pp, Rlist
         switch (agent)
         {
         case AGENT_TYPE_COMMON:
-            ShowPromise(report_context, REPORT_OUTPUT_TYPE_TEXT, pexp, 6);
+            ShowPromise(report_context, pexp, 6);
             CheckRecursion(report_context, pexp);
-            ReCheckAllConstraints(pexp);
+            PromiseRecheckAllConstraints(pexp);
             break;
 
         default:
@@ -1091,7 +1087,7 @@ static void SetAnyMissingDefaults(Promise *pp)
 {
     if (strcmp(pp->agentsubtype, "packages") == 0)
     {
-        if (GetConstraint(pp, "package_method") == NULL)
+        if (PromiseGetConstraint(pp, "package_method") == NULL)
         {
             PromiseAppendConstraint(pp, "package_method", (Rval) {"generic", RVAL_TYPE_SCALAR}, "any", true);
         }
@@ -1310,7 +1306,7 @@ void ConvergeVarHashPromise(char *scope, const Promise *pp, int allow_redefine)
 
             if (strcmp(cp->lval, "int") == 0)
             {
-                result = BufferPrintf(conv, "%ld", Str2Int(cp->rval.item));
+                result = BufferPrintf(conv, "%ld", IntFromString(cp->rval.item));
                 if (result < 0)
                 {
                     /*
@@ -1326,7 +1322,7 @@ void ConvergeVarHashPromise(char *scope, const Promise *pp, int allow_redefine)
             }
             else if (strcmp(cp->lval, "real") == 0)
             {
-                result = BufferPrintf(conv, "%lf", Str2Double(cp->rval.item));
+                result = BufferPrintf(conv, "%lf", DoubleFromString(cp->rval.item));
                 if (result < 0)
                 {
                     /*
@@ -1427,7 +1423,7 @@ void ConvergeVarHashPromise(char *scope, const Promise *pp, int allow_redefine)
             }
         }
 
-        if (!AddVariableHash(BufferData(qualified_scope), pp->promiser, rval, Typename2Datatype(cp->lval),
+        if (!AddVariableHash(BufferData(qualified_scope), pp->promiser, rval, DataTypeFromString(cp->lval),
                              cp->audit->filename, cp->offset.line))
         {
             CfOut(OUTPUT_LEVEL_VERBOSE, "", "Unable to converge %s.%s value (possibly empty or infinite regression)\n", BufferData(qualified_scope), pp->promiser);
@@ -1682,27 +1678,27 @@ static void ParseServices(const ReportContext *report_context, Promise *pp)
 
     // Need to set up the default service pack to eliminate syntax, analogous to verify_services.c
 
-    if (GetConstraintValue("service_bundle", pp, RVAL_TYPE_SCALAR) == NULL)
+    if (ConstraintGetRvalValue("service_bundle", pp, RVAL_TYPE_SCALAR) == NULL)
     {
         switch (a.service.service_policy)
         {
-        case cfsrv_start:
+        case SERVICE_POLICY_START:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "start", RVAL_TYPE_SCALAR);
             break;
 
-        case cfsrv_restart:
+        case SERVICE_POLICY_RESTART:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "restart", RVAL_TYPE_SCALAR);
             break;
 
-        case cfsrv_reload:
+        case SERVICE_POLICY_RELOAD:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "restart", RVAL_TYPE_SCALAR);
             break;
 
-        case cfsrv_stop:
-        case cfsrv_disable:
+        case SERVICE_POLICY_STOP:
+        case SERVICE_POLICY_DISABLE:
         default:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "stop", RVAL_TYPE_SCALAR);
@@ -1720,20 +1716,20 @@ static void ParseServices(const ReportContext *report_context, Promise *pp)
 
     switch (a.service.service_policy)
     {
-    case cfsrv_start:
+    case SERVICE_POLICY_START:
         NewScalar("this", "service_policy", "start", DATA_TYPE_STRING);
         break;
 
-    case cfsrv_restart:
+    case SERVICE_POLICY_RESTART:
         NewScalar("this", "service_policy", "restart", DATA_TYPE_STRING);
         break;
 
-    case cfsrv_reload:
+    case SERVICE_POLICY_RELOAD:
         NewScalar("this", "service_policy", "reload", DATA_TYPE_STRING);
         break;
         
-    case cfsrv_stop:
-    case cfsrv_disable:
+    case SERVICE_POLICY_STOP:
+    case SERVICE_POLICY_DISABLE:
     default:
         NewScalar("this", "service_policy", "stop", DATA_TYPE_STRING);
         break;

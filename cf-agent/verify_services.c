@@ -25,7 +25,6 @@
 #include "verify_services.h"
 
 #include "verify_methods.h"
-#include "constraints.h"
 #include "promises.h"
 #include "vars.h"
 #include "attributes.h"
@@ -34,6 +33,7 @@
 #include "transaction.h"
 #include "logging.h"
 #include "rlist.h"
+#include "policy.h"
 
 static int ServicesSanityChecks(Attributes a, Promise *pp);
 static void SetServiceDefaults(Attributes *a);
@@ -63,11 +63,11 @@ static int ServicesSanityChecks(Attributes a, Promise *pp)
 
     switch (a.service.service_policy)
     {
-    case cfsrv_start:
+    case SERVICE_POLICY_START:
         break;
 
-    case cfsrv_stop:
-    case cfsrv_disable:
+    case SERVICE_POLICY_STOP:
+    case SERVICE_POLICY_DISABLE:
         if (strcmp(a.service.service_autostart_policy, "none") != 0)
         {
             CfOut(OUTPUT_LEVEL_ERROR, "",
@@ -196,27 +196,27 @@ static void DoVerifyServices(Attributes a, Promise *pp, const ReportContext *rep
 
 // Need to set up the default service pack to eliminate syntax
 
-    if (GetConstraintValue("service_bundle", pp, RVAL_TYPE_SCALAR) == NULL)
+    if (ConstraintGetRvalValue("service_bundle", pp, RVAL_TYPE_SCALAR) == NULL)
     {
         switch (a.service.service_policy)
         {
-        case cfsrv_start:
+        case SERVICE_POLICY_START:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "start", RVAL_TYPE_SCALAR);
             break;
 
-        case cfsrv_restart:
+        case SERVICE_POLICY_RESTART:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "restart", RVAL_TYPE_SCALAR);
             break;
 
-        case cfsrv_reload:
+        case SERVICE_POLICY_RELOAD:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "restart", RVAL_TYPE_SCALAR);
             break;
             
-        case cfsrv_stop:
-        case cfsrv_disable:
+        case SERVICE_POLICY_STOP:
+        case SERVICE_POLICY_DISABLE:
         default:
             RlistAppend(&args, pp->promiser, RVAL_TYPE_SCALAR);
             RlistAppend(&args, "stop", RVAL_TYPE_SCALAR);
@@ -234,20 +234,20 @@ static void DoVerifyServices(Attributes a, Promise *pp, const ReportContext *rep
 
     switch (a.service.service_policy)
     {
-    case cfsrv_start:
+    case SERVICE_POLICY_START:
         NewScalar("this", "service_policy", "start", DATA_TYPE_STRING);
         break;
 
-    case cfsrv_restart:
+    case SERVICE_POLICY_RESTART:
         NewScalar("this", "service_policy", "restart", DATA_TYPE_STRING);
         break;
 
-    case cfsrv_reload:
+    case SERVICE_POLICY_RELOAD:
         NewScalar("this", "service_policy", "reload", DATA_TYPE_STRING);
         break;
         
-    case cfsrv_stop:
-    case cfsrv_disable:
+    case SERVICE_POLICY_STOP:
+    case SERVICE_POLICY_DISABLE:
     default:
         NewScalar("this", "service_policy", "stop", DATA_TYPE_STRING);
         break;

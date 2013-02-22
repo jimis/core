@@ -25,6 +25,16 @@
 #ifndef CFENGINE_ITEM_LIB_H
 #define CFENGINE_ITEM_LIB_H
 
+struct Item_
+{
+    char done;
+    char *name;
+    char *classes;
+    int counter;
+    time_t time;
+    Item *next;
+};
+
 typedef enum
 {
     ITEM_MATCH_TYPE_LITERAL_START,
@@ -49,7 +59,7 @@ int SelectItemMatching(Item *s, char *regex, Item *begin, Item *end, Item **matc
 int SelectNextItemMatching(const char *regexp, Item *begin, Item *end, Item **match, Item **prev);
 int SelectLastItemMatching(const char *regexp, Item *begin, Item *end, Item **match, Item **prev);
 void InsertAfter(Item **filestart, Item *ptr, const char *string);
-int NeighbourItemMatches(const Item *start, const Item *location, const char *string, enum cfeditorder pos, Attributes a, const Promise *pp);
+int NeighbourItemMatches(const Item *start, const Item *location, const char *string, EditOrder pos, Attributes a, const Promise *pp);
 int RawSaveItemList(const Item *liststart, const char *file);
 Item *SplitStringAsItemList(const char *string, char sep);
 Item *SplitString(const char *string, char sep);

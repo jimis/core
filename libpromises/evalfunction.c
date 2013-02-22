@@ -59,6 +59,16 @@
 
 #include <libgen.h>
 
+typedef enum
+{
+    DATE_TEMPLATE_YEAR,
+    DATE_TEMPLATE_MONTH,
+    DATE_TEMPLATE_DAY,
+    DATE_TEMPLATE_HOUR,
+    DATE_TEMPLATE_MIN,
+    DATE_TEMPLATE_SEC
+} DateTemplate;
+
 static char *StripPatterns(char *file_buffer, char *pattern, char *filename);
 static void CloseStringHole(char *s, int start, int end);
 static int BuildLineArray(char *array_lval, char *file_buffer, char *split, int maxent, DataType type, int intIndex);
@@ -186,7 +196,11 @@ static FnCallResult FnCallAnd(FnCall *fp, Rlist *finalargs)
 /* We need to check all the arguments, ArgTemplate does not check varadic functions */
     for (arg = finalargs; arg; arg = arg->next)
     {
-        CheckConstraintTypeMatch(id, (Rval) {arg->item, arg->type}, DATA_TYPE_STRING, "", 1);
+        SyntaxTypeMatch err = CheckConstraintTypeMatch(id, (Rval) {arg->item, arg->type}, DATA_TYPE_STRING, "", 1);
+        if (err != SYNTAX_TYPE_MATCH_OK && err != SYNTAX_TYPE_MATCH_ERROR_UNEXPANDED)
+        {
+            FatalError("in %s: %s", id, SyntaxTypeMatchToString(err));
+        }
     }
 
     for (arg = finalargs; arg; arg = arg->next)
@@ -227,7 +241,7 @@ static FnCallResult FnCallHostsSeen(FnCall *fp, Rlist *finalargs)
 {
     Item *addresses = NULL;
 
-    int horizon = Str2Int(RlistScalarValue(finalargs)) * 3600;
+    int horizon = IntFromString(RlistScalarValue(finalargs)) * 3600;
     char *policy = RlistScalarValue(finalargs->next);
     char *format = RlistScalarValue(finalargs->next->next);
 
@@ -288,8 +302,8 @@ static FnCallResult FnCallRandomInt(FnCall *fp, Rlist *finalargs)
 
 /* begin fn specific content */
 
-    int from = Str2Int(RlistScalarValue(finalargs));
-    int to = Str2Int(RlistScalarValue(finalargs->next));
+    int from = IntFromString(RlistScalarValue(finalargs));
+    int to = IntFromString(RlistScalarValue(finalargs->next));
 
     if (from == CF_NOINT || to == CF_NOINT)
     {
@@ -321,7 +335,7 @@ static FnCallResult FnCallGetEnv(FnCall *fp, Rlist *finalargs)
 /* begin fn specific content */
 
     char *name = RlistScalarValue(finalargs);
-    int limit = Str2Int(RlistScalarValue(finalargs->next));
+    int limit = IntFromString(RlistScalarValue(finalargs->next));
 
     snprintf(ctrlstr, CF_SMALLBUF, "%%.%ds", limit);    // -> %45s
 
@@ -482,7 +496,7 @@ static FnCallResult FnCallHash(FnCall *fp, Rlist *finalargs)
 {
     char buffer[CF_BUFSIZE];
     unsigned char digest[EVP_MAX_MD_SIZE + 1];
-    enum cfhashes type;
+    HashMethod type;
 
     buffer[0] = '\0';
 
@@ -491,9 +505,9 @@ static FnCallResult FnCallHash(FnCall *fp, Rlist *finalargs)
     char *string = RlistScalarValue(finalargs);
     char *typestring = RlistScalarValue(finalargs->next);
 
-    type = String2HashType(typestring);
+    type = HashMethodFromString(typestring);
 
-    if (FIPS_MODE && type == cf_md5)
+    if (FIPS_MODE && type == HASH_METHOD_MD5)
     {
         CfOut(OUTPUT_LEVEL_ERROR, "", " !! FIPS mode is enabled, and md5 is not an approved algorithm in call to hash()");
     }
@@ -512,7 +526,7 @@ static FnCallResult FnCallHashMatch(FnCall *fp, Rlist *finalargs)
 {
     char buffer[CF_BUFSIZE], ret[CF_BUFSIZE];
     unsigned char digest[EVP_MAX_MD_SIZE + 1];
-    enum cfhashes type;
+    HashMethod type;
 
     buffer[0] = '\0';
 
@@ -522,7 +536,7 @@ static FnCallResult FnCallHashMatch(FnCall *fp, Rlist *finalargs)
     char *typestring = RlistScalarValue(finalargs->next);
     char *compare = RlistScalarValue(finalargs->next->next);
 
-    type = String2HashType(typestring);
+    type = HashMethodFromString(typestring);
     HashFile(string, digest, type);
     snprintf(buffer, CF_BUFSIZE - 1, "%s", HashPrint(type, digest));
     CfOut(OUTPUT_LEVEL_VERBOSE, "", " -> File \"%s\" hashes to \"%s\", compare to \"%s\"\n", string, buffer, compare);
@@ -552,7 +566,11 @@ static FnCallResult FnCallConcat(FnCall *fp, Rlist *finalargs)
 /* We need to check all the arguments, ArgTemplate does not check varadic functions */
     for (arg = finalargs; arg; arg = arg->next)
     {
-        CheckConstraintTypeMatch(id, (Rval) {arg->item, arg->type}, DATA_TYPE_STRING, "", 1);
+        SyntaxTypeMatch err = CheckConstraintTypeMatch(id, (Rval) {arg->item, arg->type}, DATA_TYPE_STRING, "", 1);
+        if (err != SYNTAX_TYPE_MATCH_OK && err != SYNTAX_TYPE_MATCH_ERROR_UNEXPANDED)
+        {
+            FatalError("in %s: %s", id, SyntaxTypeMatchToString(err));
+        }
     }
 
     for (arg = finalargs; arg; arg = arg->next)
@@ -729,7 +747,7 @@ static FnCallResult FnCallReturnsZero(FnCall *fp, Rlist *finalargs)
         return (FnCallResult) { FNCALL_FAILURE };
     }
 
-    if (!IsExecutable(GetArg0(RlistScalarValue(finalargs))))
+    if (!IsExecutable(CommandArg0(RlistScalarValue(finalargs))))
     {
         CfOut(OUTPUT_LEVEL_ERROR, "", "execresult \"%s\" is assumed to be executable but isn't\n", RlistScalarValue(finalargs));
         return (FnCallResult) { FNCALL_FAILURE };
@@ -741,7 +759,7 @@ static FnCallResult FnCallReturnsZero(FnCall *fp, Rlist *finalargs)
 
     snprintf(comm, CF_BUFSIZE, "%s", RlistScalarValue(finalargs));
 
-    if (cfstat(GetArg0(RlistScalarValue(finalargs)), &statbuf) == -1)
+    if (cfstat(CommandArg0(RlistScalarValue(finalargs)), &statbuf) == -1)
     {
         return (FnCallResult) { FNCALL_FAILURE };
     }
@@ -767,7 +785,7 @@ static FnCallResult FnCallExecResult(FnCall *fp, Rlist *finalargs)
         return (FnCallResult) { FNCALL_FAILURE };
     }
 
-    if (!IsExecutable(GetArg0(RlistScalarValue(finalargs))))
+    if (!IsExecutable(CommandArg0(RlistScalarValue(finalargs))))
     {
         CfOut(OUTPUT_LEVEL_ERROR, "", "execresult \"%s\" is assumed to be executable but isn't\n", RlistScalarValue(finalargs));
         return (FnCallResult) { FNCALL_FAILURE };
@@ -801,7 +819,7 @@ static FnCallResult FnCallUseModule(FnCall *fp, Rlist *finalargs)
 
     snprintf(modulecmd, CF_BUFSIZE, "%s%cmodules%c%s", CFWORKDIR, FILE_SEPARATOR, FILE_SEPARATOR, command);
 
-    if (cfstat(GetArg0(modulecmd), &statbuf) == -1)
+    if (cfstat(CommandArg0(modulecmd), &statbuf) == -1)
     {
         CfOut(OUTPUT_LEVEL_ERROR, "", "(Plug-in module %s not found)", modulecmd);
         return (FnCallResult) { FNCALL_FAILURE };
@@ -838,9 +856,9 @@ static FnCallResult FnCallSplayClass(FnCall *fp, Rlist *finalargs)
 {
     char buffer[CF_BUFSIZE], class[CF_MAXVARSIZE];
 
-    enum cfinterval policy = Str2Interval(RlistScalarValue(finalargs->next));
+    Interval policy = IntervalFromString(RlistScalarValue(finalargs->next));
 
-    if (policy == cfa_hourly)
+    if (policy == INTERVAL_HOURLY)
     {
         /* 12 5-minute slots in hour */
         int slot = GetHash(RlistScalarValue(finalargs), CF_HASHTABLESIZE) * 12 / CF_HASHTABLESIZE;
@@ -888,8 +906,8 @@ static FnCallResult FnCallReadTcp(FnCall *fp, Rlist *finalargs)
     char *sendstring = RlistScalarValue(finalargs->next->next);
     char *maxbytes = RlistScalarValue(finalargs->next->next->next);
 
-    val = Str2Int(maxbytes);
-    portnum = (short) Str2Int(port);
+    val = IntFromString(maxbytes);
+    portnum = (short) IntFromString(port);
 
     if (val < 0 || portnum < 0 || THIS_AGENT_TYPE == AGENT_TYPE_COMMON)
     {
@@ -1009,7 +1027,7 @@ static FnCallResult FnCallRegArray(FnCall *fp, Rlist *finalargs)
     char lval[CF_MAXVARSIZE], scopeid[CF_MAXVARSIZE];
     char match[CF_MAXVARSIZE], buffer[CF_BUFSIZE];
     Scope *ptr;
-    HashIterator i;
+    AssocHashTableIterator i;
     CfAssoc *assoc;
 
 /* begin fn specific content */
@@ -1065,7 +1083,7 @@ static FnCallResult FnCallGetIndices(FnCall *fp, Rlist *finalargs)
     char index[CF_MAXVARSIZE], match[CF_MAXVARSIZE];
     Scope *ptr;
     Rlist *returnlist = NULL;
-    HashIterator i;
+    AssocHashTableIterator i;
     CfAssoc *assoc;
 
 /* begin fn specific content */
@@ -1138,7 +1156,7 @@ static FnCallResult FnCallGetValues(FnCall *fp, Rlist *finalargs)
     char match[CF_MAXVARSIZE];
     Scope *ptr;
     Rlist *rp, *returnlist = NULL;
-    HashIterator i;
+    AssocHashTableIterator i;
     CfAssoc *assoc;
 
 /* begin fn specific content */
@@ -1312,7 +1330,7 @@ static FnCallResult FnCallSum(FnCall *fp, Rlist *finalargs)
     {
         double x;
 
-        if ((x = Str2Double(rp->item)) == CF_NODOUBLE)
+        if ((x = DoubleFromString(rp->item)) == CF_NODOUBLE)
         {
             return (FnCallResult) { FNCALL_FAILURE };
         }
@@ -1377,7 +1395,7 @@ static FnCallResult FnCallProduct(FnCall *fp, Rlist *finalargs)
     {
         double x;
 
-        if ((x = Str2Double(rp->item)) == CF_NODOUBLE)
+        if ((x = DoubleFromString(rp->item)) == CF_NODOUBLE)
         {
             return (FnCallResult) { FNCALL_FAILURE };
         }
@@ -1614,7 +1632,7 @@ static FnCallResult FnCallLsDir(FnCall *fp, Rlist *finalargs)
 
     char *dirname = RlistScalarValue(finalargs);
     char *regex = RlistScalarValue(finalargs->next);
-    int includepath = GetBoolean(RlistScalarValue(finalargs->next->next));
+    int includepath = BooleanFromString(RlistScalarValue(finalargs->next->next));
 
     dirh = OpenDirLocal(dirname);
 
@@ -1775,8 +1793,8 @@ static FnCallResult FnCallSelectServers(FnCall *fp, Rlist *finalargs)
     }
 
     hostnameip = RvalRlistValue(retval);
-    val = Str2Int(maxbytes);
-    portnum = (short) Str2Int(port);
+    val = IntFromString(maxbytes);
+    portnum = (short) IntFromString(port);
 
     if (val < 0 || portnum < 0)
     {
@@ -2215,7 +2233,7 @@ static FnCallResult FnCallRemoteScalar(FnCall *fp, Rlist *finalargs)
 
     char *handle = RlistScalarValue(finalargs);
     char *server = RlistScalarValue(finalargs->next);
-    int encrypted = GetBoolean(RlistScalarValue(finalargs->next->next));
+    int encrypted = BooleanFromString(RlistScalarValue(finalargs->next->next));
 
     if (strcmp(server, "localhost") == 0)
     {
@@ -2293,7 +2311,7 @@ static FnCallResult FnCallRemoteClassesMatching(FnCall *fp, Rlist *finalargs)
 
     char *regex = RlistScalarValue(finalargs);
     char *server = RlistScalarValue(finalargs->next);
-    int encrypted = GetBoolean(RlistScalarValue(finalargs->next->next));
+    int encrypted = BooleanFromString(RlistScalarValue(finalargs->next->next));
     char *prefix = RlistScalarValue(finalargs->next->next->next);
 
     if (strcmp(server, "localhost") == 0)
@@ -2342,7 +2360,7 @@ static FnCallResult FnCallPeers(FnCall *fp, Rlist *finalargs)
 
     char *filename = RlistScalarValue(finalargs);
     char *comment = RlistScalarValue(finalargs->next);
-    int groupsize = Str2Int(RlistScalarValue(finalargs->next->next));
+    int groupsize = IntFromString(RlistScalarValue(finalargs->next->next));
 
     file_buffer = (char *) CfReadFile(filename, maxsize);
 
@@ -2431,7 +2449,7 @@ static FnCallResult FnCallPeerLeader(FnCall *fp, Rlist *finalargs)
 
     char *filename = RlistScalarValue(finalargs);
     char *comment = RlistScalarValue(finalargs->next);
-    int groupsize = Str2Int(RlistScalarValue(finalargs->next->next));
+    int groupsize = IntFromString(RlistScalarValue(finalargs->next->next));
 
     file_buffer = (char *) CfReadFile(filename, maxsize);
 
@@ -2522,7 +2540,7 @@ static FnCallResult FnCallPeerLeaders(FnCall *fp, Rlist *finalargs)
 
     char *filename = RlistScalarValue(finalargs);
     char *comment = RlistScalarValue(finalargs->next);
-    int groupsize = Str2Int(RlistScalarValue(finalargs->next->next));
+    int groupsize = IntFromString(RlistScalarValue(finalargs->next->next));
 
     file_buffer = (char *) CfReadFile(filename, maxsize);
 
@@ -2642,7 +2660,7 @@ static FnCallResult FnCallRegExtract(FnCall *fp, Rlist *finalargs)
 
     if (ptr && ptr->hashtable)
     {
-        HashIterator i = HashIteratorInit(ptr->hashtable);
+        AssocHashTableIterator i = HashIteratorInit(ptr->hashtable);
         CfAssoc *assoc;
 
         while ((assoc = HashIteratorNext(&i)))
@@ -2733,8 +2751,8 @@ static FnCallResult FnCallIsLessGreaterThan(FnCall *fp, Rlist *finalargs)
 
     if (IsRealNumber(argv0) && IsRealNumber(argv1))
     {
-        double a = Str2Double(argv0);
-        double b = Str2Double(argv1);
+        double a = DoubleFromString(argv0);
+        double b = DoubleFromString(argv1);
 
         if (a == CF_NODOUBLE || b == CF_NODOUBLE)
         {
@@ -2805,8 +2823,8 @@ static FnCallResult FnCallIRange(FnCall *fp, Rlist *finalargs)
 
 /* begin fn specific content */
 
-    long from = Str2Int(RlistScalarValue(finalargs));
-    long to = Str2Int(RlistScalarValue(finalargs->next));
+    long from = IntFromString(RlistScalarValue(finalargs));
+    long to = IntFromString(RlistScalarValue(finalargs->next));
 
     if (from == CF_NOINT || to == CF_NOINT)
     {
@@ -2843,8 +2861,8 @@ static FnCallResult FnCallRRange(FnCall *fp, Rlist *finalargs)
 
 /* begin fn specific content */
 
-    double from = Str2Double(RlistScalarValue(finalargs));
-    double to = Str2Double(RlistScalarValue(finalargs->next));
+    double from = DoubleFromString(RlistScalarValue(finalargs));
+    double to = DoubleFromString(RlistScalarValue(finalargs->next));
 
     if (from == CF_NODOUBLE || to == CF_NODOUBLE)
     {
@@ -2874,7 +2892,7 @@ static FnCallResult FnCallOn(FnCall *fp, Rlist *finalargs)
     long d[6];
     time_t cftime;
     struct tm tmv;
-    enum cfdatetemplate i;
+    DateTemplate i;
 
     buffer[0] = '\0';
 
@@ -2886,19 +2904,19 @@ static FnCallResult FnCallOn(FnCall *fp, Rlist *finalargs)
     {
         if (rp != NULL)
         {
-            d[i] = Str2Int(RlistScalarValue(rp));
+            d[i] = IntFromString(RlistScalarValue(rp));
             rp = rp->next;
         }
     }
 
 /* (year,month,day,hour,minutes,seconds) */
 
-    tmv.tm_year = d[cfa_year] - 1900;
-    tmv.tm_mon = d[cfa_month] - 1;
-    tmv.tm_mday = d[cfa_day];
-    tmv.tm_hour = d[cfa_hour];
-    tmv.tm_min = d[cfa_min];
-    tmv.tm_sec = d[cfa_sec];
+    tmv.tm_year = d[DATE_TEMPLATE_YEAR] - 1900;
+    tmv.tm_mon = d[DATE_TEMPLATE_MONTH] - 1;
+    tmv.tm_mday = d[DATE_TEMPLATE_DAY];
+    tmv.tm_hour = d[DATE_TEMPLATE_HOUR];
+    tmv.tm_min = d[DATE_TEMPLATE_MIN];
+    tmv.tm_sec = d[DATE_TEMPLATE_SEC];
     tmv.tm_isdst = -1;
 
     if ((cftime = mktime(&tmv)) == -1)
@@ -2925,7 +2943,11 @@ static FnCallResult FnCallOr(FnCall *fp, Rlist *finalargs)
 /* We need to check all the arguments, ArgTemplate does not check varadic functions */
     for (arg = finalargs; arg; arg = arg->next)
     {
-        CheckConstraintTypeMatch(id, (Rval) {arg->item, arg->type}, DATA_TYPE_STRING, "", 1);
+        SyntaxTypeMatch err = CheckConstraintTypeMatch(id, (Rval) {arg->item, arg->type}, DATA_TYPE_STRING, "", 1);
+        if (err != SYNTAX_TYPE_MATCH_OK && err != SYNTAX_TYPE_MATCH_ERROR_UNEXPANDED)
+        {
+            FatalError("in %s: %s", id, SyntaxTypeMatchToString(err));
+        }
     }
 
     for (arg = finalargs; arg; arg = arg->next)
@@ -2948,7 +2970,7 @@ static FnCallResult FnCallLaterThan(FnCall *fp, Rlist *finalargs)
     long d[6];
     time_t cftime, now = time(NULL);
     struct tm tmv;
-    enum cfdatetemplate i;
+    DateTemplate i;
 
     buffer[0] = '\0';
 
@@ -2960,19 +2982,19 @@ static FnCallResult FnCallLaterThan(FnCall *fp, Rlist *finalargs)
     {
         if (rp != NULL)
         {
-            d[i] = Str2Int(RlistScalarValue(rp));
+            d[i] = IntFromString(RlistScalarValue(rp));
             rp = rp->next;
         }
     }
 
 /* (year,month,day,hour,minutes,seconds) */
 
-    tmv.tm_year = d[cfa_year] - 1900;
-    tmv.tm_mon = d[cfa_month] - 1;
-    tmv.tm_mday = d[cfa_day];
-    tmv.tm_hour = d[cfa_hour];
-    tmv.tm_min = d[cfa_min];
-    tmv.tm_sec = d[cfa_sec];
+    tmv.tm_year = d[DATE_TEMPLATE_YEAR] - 1900;
+    tmv.tm_mon = d[DATE_TEMPLATE_MONTH] - 1;
+    tmv.tm_mday = d[DATE_TEMPLATE_DAY];
+    tmv.tm_hour = d[DATE_TEMPLATE_HOUR];
+    tmv.tm_min = d[DATE_TEMPLATE_MIN];
+    tmv.tm_sec = d[DATE_TEMPLATE_SEC];
     tmv.tm_isdst = -1;
 
     if ((cftime = mktime(&tmv)) == -1)
@@ -3002,7 +3024,7 @@ static FnCallResult FnCallAgoDate(FnCall *fp, Rlist *finalargs)
     char buffer[CF_BUFSIZE];
     time_t cftime;
     long d[6];
-    enum cfdatetemplate i;
+    DateTemplate i;
 
     buffer[0] = '\0';
 
@@ -3014,7 +3036,7 @@ static FnCallResult FnCallAgoDate(FnCall *fp, Rlist *finalargs)
     {
         if (rp != NULL)
         {
-            d[i] = Str2Int(RlistScalarValue(rp));
+            d[i] = IntFromString(RlistScalarValue(rp));
             rp = rp->next;
         }
     }
@@ -3022,12 +3044,12 @@ static FnCallResult FnCallAgoDate(FnCall *fp, Rlist *finalargs)
 /* (year,month,day,hour,minutes,seconds) */
 
     cftime = CFSTARTTIME;
-    cftime -= d[cfa_sec];
-    cftime -= d[cfa_min] * 60;
-    cftime -= d[cfa_hour] * 3600;
-    cftime -= d[cfa_day] * 24 * 3600;
-    cftime -= Months2Seconds(d[cfa_month]);
-    cftime -= d[cfa_year] * 365 * 24 * 3600;
+    cftime -= d[DATE_TEMPLATE_SEC];
+    cftime -= d[DATE_TEMPLATE_MIN] * 60;
+    cftime -= d[DATE_TEMPLATE_HOUR] * 3600;
+    cftime -= d[DATE_TEMPLATE_DAY] * 24 * 3600;
+    cftime -= Months2Seconds(d[DATE_TEMPLATE_MONTH]);
+    cftime -= d[DATE_TEMPLATE_YEAR] * 365 * 24 * 3600;
 
     CfDebug("Total negative offset = %.1f minutes\n", (double) (CFSTARTTIME - cftime) / 60.0);
     CfDebug("Time computed from input was: %s\n", cf_ctime(&cftime));
@@ -3050,7 +3072,7 @@ static FnCallResult FnCallAccumulatedDate(FnCall *fp, Rlist *finalargs)
     Rlist *rp;
     char buffer[CF_BUFSIZE];
     long d[6], cftime;
-    enum cfdatetemplate i;
+    DateTemplate i;
 
     buffer[0] = '\0';
 
@@ -3062,7 +3084,7 @@ static FnCallResult FnCallAccumulatedDate(FnCall *fp, Rlist *finalargs)
     {
         if (rp != NULL)
         {
-            d[i] = Str2Int(RlistScalarValue(rp));
+            d[i] = IntFromString(RlistScalarValue(rp));
             rp = rp->next;
         }
     }
@@ -3070,12 +3092,12 @@ static FnCallResult FnCallAccumulatedDate(FnCall *fp, Rlist *finalargs)
 /* (year,month,day,hour,minutes,seconds) */
 
     cftime = 0;
-    cftime += d[cfa_sec];
-    cftime += d[cfa_min] * 60;
-    cftime += d[cfa_hour] * 3600;
-    cftime += d[cfa_day] * 24 * 3600;
-    cftime += d[cfa_month] * 30 * 24 * 3600;
-    cftime += d[cfa_year] * 365 * 24 * 3600;
+    cftime += d[DATE_TEMPLATE_SEC];
+    cftime += d[DATE_TEMPLATE_MIN] * 60;
+    cftime += d[DATE_TEMPLATE_HOUR] * 3600;
+    cftime += d[DATE_TEMPLATE_DAY] * 24 * 3600;
+    cftime += d[DATE_TEMPLATE_MONTH] * 30 * 24 * 3600;
+    cftime += d[DATE_TEMPLATE_YEAR] * 365 * 24 * 3600;
 
     snprintf(buffer, CF_BUFSIZE - 1, "%ld", cftime);
 
@@ -3120,7 +3142,7 @@ static FnCallResult FnCallReadFile(FnCall *fp, Rlist *finalargs)
 /* begin fn specific content */
 
     char *filename = RlistScalarValue(finalargs);
-    int maxsize = Str2Int(RlistScalarValue(finalargs->next));
+    int maxsize = IntFromString(RlistScalarValue(finalargs->next));
 
 // Read once to validate structure of file in itemlist
 
@@ -3153,8 +3175,8 @@ static FnCallResult ReadList(FnCall *fp, Rlist *finalargs, DataType type)
     char *filename = RlistScalarValue(finalargs);
     char *comment = RlistScalarValue(finalargs->next);
     char *split = RlistScalarValue(finalargs->next->next);
-    int maxent = Str2Int(RlistScalarValue(finalargs->next->next->next));
-    int maxsize = Str2Int(RlistScalarValue(finalargs->next->next->next->next));
+    int maxent = IntFromString(RlistScalarValue(finalargs->next->next->next));
+    int maxsize = IntFromString(RlistScalarValue(finalargs->next->next->next->next));
 
 // Read once to validate structure of file in itemlist
 
@@ -3189,7 +3211,7 @@ static FnCallResult ReadList(FnCall *fp, Rlist *finalargs, DataType type)
     case DATA_TYPE_INT:
         for (rp = newlist; rp != NULL; rp = rp->next)
         {
-            if (Str2Int(RlistScalarValue(rp)) == CF_NOINT)
+            if (IntFromString(RlistScalarValue(rp)) == CF_NOINT)
             {
                 CfOut(OUTPUT_LEVEL_ERROR, "", "Presumed int value \"%s\" read from file %s has no recognizable value",
                       RlistScalarValue(rp), filename);
@@ -3201,7 +3223,7 @@ static FnCallResult ReadList(FnCall *fp, Rlist *finalargs, DataType type)
     case DATA_TYPE_REAL:
         for (rp = newlist; rp != NULL; rp = rp->next)
         {
-            if (Str2Double(RlistScalarValue(rp)) == CF_NODOUBLE)
+            if (DoubleFromString(RlistScalarValue(rp)) == CF_NODOUBLE)
             {
                 CfOut(OUTPUT_LEVEL_ERROR, "", "Presumed real value \"%s\" read from file %s has no recognizable value",
                       RlistScalarValue(rp), filename);
@@ -3269,8 +3291,8 @@ static FnCallResult ReadArray(FnCall *fp, Rlist *finalargs, DataType type, int i
     char *filename = RlistScalarValue(finalargs->next);
     char *comment = RlistScalarValue(finalargs->next->next);
     char *split = RlistScalarValue(finalargs->next->next->next);
-    int maxent = Str2Int(RlistScalarValue(finalargs->next->next->next->next));
-    int maxsize = Str2Int(RlistScalarValue(finalargs->next->next->next->next->next));
+    int maxent = IntFromString(RlistScalarValue(finalargs->next->next->next->next));
+    int maxsize = IntFromString(RlistScalarValue(finalargs->next->next->next->next->next));
 
 // Read once to validate structure of file in itemlist
 
@@ -3372,8 +3394,8 @@ static FnCallResult ParseArray(FnCall *fp, Rlist *finalargs, DataType type, int 
     char *instring = xstrdup(RlistScalarValue(finalargs->next));
     char *comment = RlistScalarValue(finalargs->next->next);
     char *split = RlistScalarValue(finalargs->next->next->next);
-    int maxent = Str2Int(RlistScalarValue(finalargs->next->next->next->next));
-    int maxsize = Str2Int(RlistScalarValue(finalargs->next->next->next->next->next));
+    int maxent = IntFromString(RlistScalarValue(finalargs->next->next->next->next));
+    int maxsize = IntFromString(RlistScalarValue(finalargs->next->next->next->next->next));
 
 // Read once to validate structure of file in itemlist
 
@@ -3456,7 +3478,7 @@ static FnCallResult FnCallSplitString(FnCall *fp, Rlist *finalargs)
 
     char *string = RlistScalarValue(finalargs);
     char *split = RlistScalarValue(finalargs->next);
-    int max = Str2Int(RlistScalarValue(finalargs->next->next));
+    int max = IntFromString(RlistScalarValue(finalargs->next->next));
 
 // Read once to validate structure of file in itemlist
 
@@ -3931,12 +3953,12 @@ static int BuildLineArray(char *array_lval, char *file_buffer, char *split, int 
                 break;
 
             case DATA_TYPE_INT:
-                ival = Str2Int(rp->item);
+                ival = IntFromString(rp->item);
                 snprintf(this_rval, CF_MAXVARSIZE, "%d", (int) ival);
                 break;
 
             case DATA_TYPE_REAL:
-                Str2Double(rp->item);   /* Verify syntax */
+                DoubleFromString(rp->item);   /* Verify syntax */
                 sscanf(rp->item, "%255s", this_rval);
                 break;
 
@@ -4048,7 +4070,7 @@ void ModuleProtocol(char *command, char *line, int print, const char *ns)
 
 /* Infer namespace from script name */
 
-    snprintf(arg0, CF_BUFSIZE, "%s", GetArg0(command));
+    snprintf(arg0, CF_BUFSIZE, "%s", CommandArg0(command));
     filename = basename(arg0);
 
 /* Canonicalize filename into acceptable namespace name*/

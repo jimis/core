@@ -48,7 +48,7 @@ static void QueryTableColumns(char *s, char *db, char *table);
 static int NewSQLColumns(char *table, Rlist *columns, char ***name_table, char ***type_table, int **size_table,
                          int **done);
 static void DeleteSQLColumns(char **name_table, char **type_table, int *size_table, int *done, int len);
-static void CreateDBQuery(enum cfdbtype type, char *query);
+static void CreateDBQuery(DatabaseType type, char *query);
 static int CreateTableColumns(CfdbConn *cfdb, char *table, Rlist *columns, Attributes a, Promise *pp);
 static int CheckSQLDataType(char *type, char *ref_type, Promise *pp);
 static int TableExists(CfdbConn *cfdb, char *name);
@@ -578,7 +578,7 @@ static int VerifyTablePromise(CfdbConn *cfdb, char *table_path, Rlist *columns, 
 
         if (sizestr)
         {
-            size = Str2Int(sizestr);
+            size = IntFromString(sizestr);
         }
 
         CfOut(OUTPUT_LEVEL_VERBOSE, "", "    ... discovered column (%s,%s,%d)", name, type, size);
@@ -796,15 +796,15 @@ static Rlist *GetSQLTables(CfdbConn *cfdb)
 
 /*****************************************************************************/
 
-static void CreateDBQuery(enum cfdbtype type, char *query)
+static void CreateDBQuery(DatabaseType type, char *query)
 {
     switch (type)
     {
-    case cfd_mysql:
+    case DATABASE_TYPE_MYSQL:
         snprintf(query, CF_MAXVARSIZE - 1, "show databases");
         break;
 
-    case cfd_postgres:
+    case DATABASE_TYPE_POSTGRES:
         /* This gibberish is the simplest thing I can find in postgres */
 
         snprintf(query, CF_MAXVARSIZE - 1, "SELECT pg_database.datname FROM pg_database");
@@ -923,7 +923,7 @@ static int NewSQLColumns(char *table, Rlist *columns, char ***name_table, char *
         {
             if (cols->next->next->item)
             {
-                (*size_table)[i] = Str2Int(cols->next->next->item);
+                (*size_table)[i] = IntFromString(cols->next->next->item);
             }
             else
             {
@@ -1010,11 +1010,11 @@ static void ListTables(int type, char *query)
 {
     switch (type)
     {
-    case cfd_mysql:
+    case DATABASE_TYPE_MYSQL:
         snprintf(query, CF_MAXVARSIZE - 1, "show tables");
         break;
 
-    case cfd_postgres:
+    case DATABASE_TYPE_POSTGRES:
         /* This gibberish is the simplest thing I can find in postgres */
 
         snprintf(query, CF_MAXVARSIZE - 1,

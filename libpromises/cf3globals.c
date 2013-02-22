@@ -73,13 +73,6 @@ int EDIT_MODEL = false;
 int BOOTSTRAP = false;
 
 /*****************************************************************************/
-/* Measurements                                                              */
-/*****************************************************************************/
-
-double METER_KEPT[meter_endmark];
-double METER_REPAIRED[meter_endmark];
-
-/*****************************************************************************/
 /* Internal data structures                                                  */
 /*****************************************************************************/
 
@@ -154,20 +147,12 @@ char VIPADDRESS[18] = { 0 };
 Item *IPADDRESSES = NULL;
 
 /*******************************************************************/
-/* Context Management                                              */
-/*******************************************************************/
-
-// see env_context.c
-
-Rlist *GOALS = NULL;
-
-/*******************************************************************/
 /*                                                                 */
 /* Checksums                                                       */
 /*                                                                 */
 /*******************************************************************/
 
-enum cfhashes CF_DEFAULT_DIGEST;
+HashMethod CF_DEFAULT_DIGEST;
 int CF_DEFAULT_DIGEST_LEN;
 
 /***********************************************************/
@@ -193,4 +178,4 @@ char BINDINTERFACE[CF_BUFSIZE] = { 0 };
 
 bool MINUSF = false;
 
-enum classes VSYSTEMHARDCLASS;
+PlatformContext VSYSTEMHARDCLASS;

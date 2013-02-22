@@ -357,11 +357,11 @@ static Item *NextItem(const Item *ip)
  * in these scenarios.
  **/
 
-int MakeParentDirectory2(char *parentandchild, int force, const ReportContext *report_context, bool enforce_promise)
+int MakeParentDirectory2(char *parentandchild, int force, bool enforce_promise)
 {
     if(enforce_promise)
     {
-        return MakeParentDirectory(parentandchild, force, report_context);
+        return MakeParentDirectory(parentandchild, force);
     }
 
     char *parent_dir = GetParentDirectoryCopy(parentandchild);
@@ -377,7 +377,7 @@ int MakeParentDirectory2(char *parentandchild, int force, const ReportContext *r
  * Please consider using MakeParentDirectory2() instead.
  **/
 
-int MakeParentDirectory(char *parentandchild, int force, const ReportContext *report_context)
+int MakeParentDirectory(char *parentandchild, int force)
 {
     char *spc, *sp;
     char currentpath[CF_BUFSIZE];
@@ -949,16 +949,16 @@ static char FileStateToChar(FileState status)
 {
     switch(status)
     {
-    case cf_file_new:
+    case FILE_STATE_NEW:
         return 'N';
 
-    case cf_file_removed:
+    case FILE_STATE_REMOVED:
         return 'R';
 
-    case cf_file_content_changed:
+    case FILE_STATE_CONTENT_CHANGED:
         return 'C';
 
-    case cf_file_stats_changed:
+    case FILE_STATE_STATS_CHANGED:
         return 'S';
 
     default:

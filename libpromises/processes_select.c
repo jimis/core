@@ -296,7 +296,7 @@ static int SelectProcRangeMatch(char *name1, char *name2, int min, int max, char
 
     if ((i = GetProcColumnIndex(name1, name2, names)) != -1)
     {
-        value = Str2Int(line[i]);
+        value = IntFromString(line[i]);
 
         if (value == CF_NOINT)
         {
@@ -335,7 +335,7 @@ static long TimeCounter2Int(const char *s)
         if (sscanf(s, "%ld-%ld:%ld", &d, &h, &m) != 3)
         {
             snprintf(output, CF_BUFSIZE, "Unable to parse TIME 'ps' field, expected dd-hh:mm, got '%s'", s);
-            ReportError(output);
+            FatalError("%s", output);
         }
     }
     else
@@ -343,7 +343,7 @@ static long TimeCounter2Int(const char *s)
         if (sscanf(s, "%ld:%ld", &h, &m) != 2)
         {
             snprintf(output, CF_BUFSIZE, "Unable to parse TIME 'ps' field, expected hH:mm, got '%s'", s);
-            ReportError(output);
+            FatalError("%s", output);
         }
     }
 
@@ -601,6 +601,7 @@ bool IsProcessNameRunning(char *procNameRegex)
     int start[CF_PROCCOLS] = { 0 };
     int end[CF_PROCCOLS] = { 0 };
     bool matched = false;
+    int i;
 
     if (PROCESSTABLE == NULL)
     {
@@ -630,6 +631,20 @@ bool IsProcessNameRunning(char *procNameRegex)
             matched = true;
             break;
         }
+
+        i = 0;
+        while (lineSplit[i] != NULL)
+        {
+            free(lineSplit[i]);
+            i++;
+        }
+    }
+
+    i = 0;
+    while (colHeaders[i] != NULL)
+    {
+        free(colHeaders[i]);
+        i++;
     }
 
     return matched;

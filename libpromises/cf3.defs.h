@@ -207,16 +207,16 @@ typedef struct
 
 /*******************************************************************/
 
-enum cf_filetype
+typedef enum
 {
-    cf_reg,
-    cf_link,
-    cf_dir,
-    cf_fifo,
-    cf_block,
-    cf_char,
-    cf_sock
-};
+    FILE_TYPE_REGULAR,
+    FILE_TYPE_LINK,
+    FILE_TYPE_DIR,
+    FILE_TYPE_FIFO,
+    FILE_TYPE_BLOCK,
+    FILE_TYPE_CHAR,
+    FILE_TYPE_SOCK
+} FileType;
 
 /*******************************************************************/
 
@@ -226,7 +226,7 @@ struct Stat_
 {
     char *cf_filename;          /* What file are we statting? */
     char *cf_server;            /* Which server did this come from? */
-    enum cf_filetype cf_type;   /* enum filetype */
+    FileType cf_type;           /* enum filetype */
     mode_t cf_lmode;            /* Mode of link, if link */
     mode_t cf_mode;             /* Mode of remote file, not link */
     uid_t cf_uid;               /* User ID of the file's owner */
@@ -272,29 +272,27 @@ typedef enum
 
 /*******************************************************************/
 
-enum classes
+typedef enum
 {
-    hard_class_unknown,
-    hp,
-    aix,
-    linuxx,
-    solaris,
-    freebsd,
-    netbsd,
-    crayos,
-    cfnt,
-    unix_sv,
-    openbsd,
-    cfsco,
-    darwin,
-    qnx,
-    dragonfly,
-    mingw,
-    vmware,
-    HARD_CLASSES_MAX,
-};
-
-/*******************************************************************/
+    PLATFORM_CONTEXT_UNKNOWN,
+    PLATFORM_CONTEXT_HP,
+    PLATFORM_CONTEXT_AIX,
+    PLATFORM_CONTEXT_LINUX,
+    PLATFORM_CONTEXT_SOLARIS,
+    PLATFORM_CONTEXT_FREEBSD,
+    PLATFORM_CONTEXT_NETBSD,
+    PLATFORM_CONTEXT_CRAYOS,
+    PLATFORM_CONTEXT_WINDOWS_NT,
+    PLATFORM_CONTEXT_SYSTEMV,
+    PLATFORM_CONTEXT_OPENBSD,
+    PLATFORM_CONTEXT_CFSCO,
+    PLATFORM_CONTEXT_DARWIN,
+    PLATFORM_CONTEXT_QNX,
+    PLATFORM_CONTEXT_DRAGONFLY,
+    PLATFORM_CONTEXT_MINGW,
+    PLATFORM_CONTEXT_VMWARE,
+    PLATFORM_CONTEXT_MAX
+} PlatformContext;
 
 enum observables
 {
@@ -373,14 +371,6 @@ enum observables
     ob_spare
 };
 
-typedef struct
-{
-    char *portnr;
-    char *name;
-    enum observables in;
-    enum observables out;
-} Sock;
-
 /*******************************************************************/
 
 typedef struct
@@ -414,20 +404,6 @@ struct Audit_
     char *date;
     unsigned char digest[EVP_MAX_MD_SIZE + 1];
     Audit *next;
-};
-
-/*******************************************************************/
-/* Action /promise types                                           */
-/*******************************************************************/
-
-struct Item_
-{
-    char done;
-    char *name;
-    char *classes;
-    int counter;
-    time_t time;
-    Item *next;
 };
 
 /*******************************************************************/
@@ -568,9 +544,7 @@ typedef enum
 #define CF_SERVERC  "server"
 #define CF_MONITORC "monitor"
 #define CF_EXECC    "executor"
-#define CF_KNOWC    "knowledge"
 #define CF_RUNC     "runagent"
-#define CF_REPORTC  "reporter"
 #define CF_KEYGEN   "keygenerator"
 #define CF_HUBC     "hub"
 #define CF_GENDOC   "gendoc"
@@ -583,8 +557,6 @@ typedef enum
     AGENT_TYPE_MONITOR,
     AGENT_TYPE_EXECUTOR,
     AGENT_TYPE_RUNAGENT,
-    AGENT_TYPE_KNOW,
-    AGENT_TYPE_REPORT,
     AGENT_TYPE_KEYGEN,
     AGENT_TYPE_HUB,
     AGENT_TYPE_GENDOC,
@@ -593,99 +565,91 @@ typedef enum
 
 /*************************************************************************/
 
-enum cfgcontrol
+typedef enum
 {
-    cfg_bundlesequence,
-    cfg_goalpatterns,
-    cfg_ignore_missing_bundles,
-    cfg_ignore_missing_inputs,
-    cfg_inputs,
-    cfg_version,
-    cfg_lastseenexpireafter,
-    cfg_output_prefix,
-    cfg_domain,
-    cfg_require_comments,
-    cfg_licenses,
-    cfg_site_classes,
-    cfg_syslog_host,
-    cfg_syslog_port,
-    cfg_fips_mode,
-    cfg_noagent
-};
+    COMMON_CONTROL_BUNDLESEQUENCE,
+    COMMON_CONTROL_GOALPATTERNS,
+    COMMON_CONTROL_IGNORE_MISSING_BUNDLES,
+    COMMON_CONTROL_IGNORE_MISSING_INPUTS,
+    COMMON_CONTROL_INPUTS,
+    COMMON_CONTROL_VERSION,
+    COMMON_CONTROL_LASTSEEN_EXPIRE_AFTER,
+    COMMON_CONTROL_OUTPUT_PREFIX,
+    COMMON_CONTROL_DOMAIN,
+    COMMON_CONTROL_REQUIRE_COMMENTS,
+    COMMON_CONTROL_LICENSES,
+    COMMON_CONTROL_SITE_CLASSES,
+    COMMON_CONTROL_SYSLOG_HOST,
+    COMMON_CONTROL_SYSLOG_PORT,
+    COMMON_CONTROL_FIPS_MODE,
+    COMMON_CONTROL_NONE
+} CommonControl;
 
 /*************************************************************************/
 
-enum cfacontrol
+typedef enum
 {
-    cfa_abortclasses,
-    cfa_abortbundleclasses,
-    cfa_addclasses,
-    cfa_agentaccess,
-    cfa_agentfacility,
-    cfa_allclassesreport,
-    cfa_alwaysvalidate,
-    cfa_auditing,
-    cfa_binarypaddingchar,
-    cfa_bindtointerface,
-    cfa_hashupdates,
-    cfa_childlibpath,
-    cfa_checksum_alert_time,
-    cfa_defaultcopytype,
-    cfa_dryrun,
-    cfa_editbinaryfilesize,
-    cfa_editfilesize,
-    cfa_environment,
-    cfa_exclamation,
-    cfa_expireafter,
-    cfa_fsinglecopy,
-    cfa_fautodefine,
-    cfa_hostnamekeys,
-    cfa_ifelapsed,
-    cfa_inform,
-    cfa_intermittency,
-    cfa_max_children,
-    cfa_maxconnections,
-    cfa_mountfilesystems,
-    cfa_nonalphanumfiles,
-    cfa_repchar,
-    cfa_refresh_processes,
-    cfa_repository,
-    cfa_secureinput,
-    cfa_sensiblecount,
-    cfa_sensiblesize,
-    cfa_skipidentify,
-    cfa_suspiciousnames,
-    cfa_syslog,
-    cfa_track_value,
-    cfa_timezone,
-    cfa_timeout,
-    cfa_verbose,
-    cfa_notype,
-};
+    AGENT_CONTROL_ABORTCLASSES,
+    AGENT_CONTROL_ABORTBUNDLECLASSES,
+    AGENT_CONTROL_ADDCLASSES,
+    AGENT_CONTROL_AGENTACCESS,
+    AGENT_CONTROL_AGENTFACILITY,
+    AGENT_CONTROL_ALLCLASSESREPORT,
+    AGENT_CONTROL_ALWAYSVALIDATE,
+    AGENT_CONTROL_AUDITING,
+    AGENT_CONTROL_BINARYPADDINGCHAR,
+    AGENT_CONTROL_BINDTOINTERFACE,
+    AGENT_CONTROL_HASHUPDATES,
+    AGENT_CONTROL_CHILDLIBPATH,
+    AGENT_CONTROL_CHECKSUM_ALERT_TIME,
+    AGENT_CONTROL_DEFAULTCOPYTYPE,
+    AGENT_CONTROL_DRYRUN,
+    AGENT_CONTROL_EDITBINARYFILESIZE,
+    AGENT_CONTROL_EDITFILESIZE,
+    AGENT_CONTROL_ENVIRONMENT,
+    AGENT_CONTROL_EXCLAMATION,
+    AGENT_CONTROL_EXPIREAFTER,
+    AGENT_CONTROL_FSINGLECOPY,
+    AGENT_CONTROL_FAUTODEFINE,
+    AGENT_CONTROL_HOSTNAMEKEYS,
+    AGENT_CONTROL_IFELAPSED,
+    AGENT_CONTROL_INFORM,
+    AGENT_CONTROL_INTERMITTENCY,
+    AGENT_CONTROL_MAX_CHILDREN,
+    AGENT_CONTROL_MAXCONNECTIONS,
+    AGENT_CONTROL_MOUNTFILESYSTEMS,
+    AGENT_CONTROL_NONALPHANUMFILES,
+    AGENT_CONTROL_REPCHAR,
+    AGENT_CONTROL_REFRESH_PROCESSES,
+    AGENT_CONTROL_REPOSITORY,
+    AGENT_CONTROL_SECUREINPUT,
+    AGENT_CONTROL_SENSIBLECOUNT,
+    AGENT_CONTROL_SENSIBLESIZE,
+    AGENT_CONTROL_SKIPIDENTIFY,
+    AGENT_CONTROL_SUSPICIOUSNAMES,
+    AGENT_CONTROL_SYSLOG,
+    AGENT_CONTROL_TRACK_VALUE,
+    AGENT_CONTROL_TIMEZONE,
+    AGENT_CONTROL_TIMEOUT,
+    AGENT_CONTROL_VERBOSE,
+    AGENT_CONTROL_NONE
+} AgentControl;
 
 /*************************************************************************/
 
-enum cfexcontrol
+typedef enum
 {
-    cfex_splaytime,
-    cfex_mailfrom,
-    cfex_mailto,
-    cfex_smtpserver,
-    cfex_mailmaxlines,
-    cfex_schedule,
-    cfex_executorfacility,
-    cfex_execcommand,
-    cfex_agent_expireafter,
-    cfex_notype,
-};
-
-/*************************************************************************/
-
-enum cfsbundle
-{
-    cfs_access,
-    cfs_nobtype
-};
+    EXEC_CONTROL_SPLAYTIME,
+    EXEC_CONTROL_MAILFROM,
+    EXEC_CONTROL_MAILTO,
+    EXEC_CONTROL_SMTPSERVER,
+    EXEC_CONTROL_MAILMAXLINES,
+    EXEC_CONTROL_SCHEDULE,
+    EXEC_CONTROL_EXECUTORFACILITY,
+    EXEC_CONTROL_EXECCOMMAND,
+    EXEC_CONTROL_AGENT_EXPIREAFTER,
+    EXEC_CONTROL_NONE
+} ExecControl;
 
 typedef enum
 {
@@ -698,11 +662,11 @@ typedef enum
     OUTPUT_LEVEL_NONE
 } OutputLevel;
 
-enum cfeditorder
+typedef enum
 {
-    cfe_before,
-    cfe_after
-};
+    EDIT_ORDER_BEFORE,
+    EDIT_ORDER_AFTER
+} EditOrder;
 
 /*************************************************************************/
 /* Syntax module range/pattern constants for type validation             */
@@ -826,18 +790,6 @@ typedef struct
 
 #define UNKNOWN_FUNCTION -1
 
-/*************************************************************************/
-
-typedef struct
-{
-    size_t start;
-    size_t end;
-    size_t line;
-    size_t context;
-} SourceOffset;
-
-/*************************************************************************/
-
 typedef struct Constraint_ Constraint;
 
 typedef struct
@@ -853,17 +805,6 @@ typedef struct
 
 } EditContext;
 
-/*************************************************************************/
-
-typedef struct PromiseIdent_
-{
-    char *handle;
-    char *filename;
-    char *classes;
-    int line_number;
-    struct PromiseIdent_ *next;
-} PromiseIdent;
-
 /*******************************************************************/
 /* Variable processing                                             */
 /*******************************************************************/
@@ -877,17 +818,6 @@ typedef struct Scope_
     AssocHashTable *hashtable;
     struct Scope_ *next;
 } Scope;
-
-/*******************************************************************/
-
-/*
- * Disposable iterator over hash table. Does not require deinitialization.
- */
-typedef struct HashIterator_
-{
-    AssocHashTable *hashtable;
-    int pos;
-} HashIterator;
 
 /*******************************************************************/
 /* Return value signalling                                         */
@@ -910,43 +840,33 @@ struct FnCallResult_
 /* Return value signalling                                         */
 /*******************************************************************/
 
-enum cfinterval
+typedef enum
 {
-    cfa_hourly,
-    cfa_daily,
-    cfa_nointerval
-};
+    INTERVAL_HOURLY,
+    INTERVAL_DAILY,
+    INTERVAL_NONE
+} Interval;
 
-enum cfdatetemplate
+typedef enum
 {
-    cfa_year,
-    cfa_month,
-    cfa_day,
-    cfa_hour,
-    cfa_min,
-    cfa_sec
-};
+    FILE_COMPARATOR_ATIME,
+    FILE_COMPARATOR_MTIME,
+    FILE_COMPARATOR_CTIME,
+    FILE_COMPARATOR_CHECKSUM,
+    FILE_COMPARATOR_HASH,
+    FILE_COMPARATOR_BINARY,
+    FILE_COMPARATOR_EXISTS,
+    FILE_COMPARATOR_NONE
+} FileComparator;
 
-enum cfcomparison
+typedef enum
 {
-    cfa_atime,
-    cfa_mtime,
-    cfa_ctime,
-    cfa_checksum,
-    cfa_hash,
-    cfa_binary,
-    cfa_exists,
-    cfa_nocomparison
-};
-
-enum cflinktype
-{
-    cfa_symlink,
-    cfa_hardlink,
-    cfa_relative,
-    cfa_absolute,
-    cfa_notlinked
-};
+    FILE_LINK_TYPE_SYMLINK,
+    FILE_LINK_TYPE_HARDLINK,
+    FILE_LINK_TYPE_RELATIVE,
+    FILE_LINK_TYPE_ABSOLUTE,
+    FILE_LINK_TYPE_NONE
+} FileLinkType;
 
 enum cfopaction
 {
@@ -954,14 +874,14 @@ enum cfopaction
     cfa_warn,
 };
 
-enum cfbackupoptions
+typedef enum
 {
-    cfa_backup,
-    cfa_nobackup,
-    cfa_timestamp,
-    cfa_rotate,
-    cfa_repos_store             /* for internal use only */
-};
+    BACKUP_OPTION_BACKUP,
+    BACKUP_OPTION_NO_BACKUP,
+    BACKUP_OPTION_TIMESTAMP,
+    BACKUP_OPTION_ROTATE,
+    BACKUP_OPTION_REPOSITORY_STORE             /* for internal use only */
+} BackupOption;
 
 enum cftidylinks
 {
@@ -969,19 +889,19 @@ enum cftidylinks
     cfa_linkkeep
 };
 
-enum cfhashes
+typedef enum
 {
-    cf_md5,
-    cf_sha224,
-    cf_sha256,
-    cf_sha384,
-    cf_sha512,
-    cf_sha1,
-    cf_sha,
-    cf_besthash,
-    cf_crypt,
-    cf_nohash
-};
+    HASH_METHOD_MD5,
+    HASH_METHOD_SHA224,
+    HASH_METHOD_SHA256,
+    HASH_METHOD_SHA384,
+    HASH_METHOD_SHA512,
+    HASH_METHOD_SHA1,
+    HASH_METHOD_SHA,
+    HASH_METHOD_BEST,
+    HASH_METHOD_CRYPT,
+    HASH_METHOD_NONE
+} HashMethod;
 
 enum cfnofile
 {
@@ -996,13 +916,13 @@ enum cflinkchildren
     cfa_onlynonexisting
 };
 
-enum cfchanges
+typedef enum
 {
-    cfa_noreport,
-    cfa_contentchange,
-    cfa_statschange,
-    cfa_allchanges
-};
+    FILE_CHANGE_REPORT_NONE,
+    FILE_CHANGE_REPORT_CONTENT_CHANGE,
+    FILE_CHANGE_REPORT_STATS_CHANGE,
+    FILE_CHANGE_REPORT_ALL
+} FileChangeReport;
 
 enum signalnames
 {
@@ -1023,47 +943,35 @@ enum signalnames
     cfa_segv
 };
 
-enum representations
+typedef enum
 {
-    cfk_url,
-    cfk_web,
-    cfk_file,
-    cfk_db,
-    cfk_literal,
-    cfk_image,
-    cfk_portal,
-    cfk_none
-};
+    PACKAGE_ACTION_ADD,
+    PACKAGE_ACTION_DELETE,
+    PACKAGE_ACTION_REINSTALL,
+    PACKAGE_ACTION_UPDATE,
+    PACKAGE_ACTION_ADDUPDATE,
+    PACKAGE_ACTION_PATCH,
+    PACKAGE_ACTION_VERIFY,
+    PACKAGE_ACTION_NONE
+} PackageAction;
 
-enum package_actions
+typedef enum
 {
-    cfa_addpack,
-    cfa_deletepack,
-    cfa_reinstall,
-    cfa_update,
-    cfa_addupdate,
-    cfa_patch,
-    cfa_verifypack,
-    cfa_pa_none
-};
+    PACKAGE_VERSION_COMPARATOR_EQ,
+    PACKAGE_VERSION_COMPARATOR_NEQ,
+    PACKAGE_VERSION_COMPARATOR_GT,
+    PACKAGE_VERSION_COMPARATOR_LT,
+    PACKAGE_VERSION_COMPARATOR_GE,
+    PACKAGE_VERSION_COMPARATOR_LE,
+    PACKAGE_VERSION_COMPARATOR_NONE
+} PackageVersionComparator;
 
-enum version_cmp
+typedef enum
 {
-    cfa_eq,
-    cfa_neq,
-    cfa_gt,
-    cfa_lt,
-    cfa_ge,
-    cfa_le,
-    cfa_cmp_none
-};
-
-enum action_policy
-{
-    cfa_individual,
-    cfa_bulk,
-    cfa_no_ppolicy
-};
+    PACKAGE_ACTION_POLICY_INDIVIDUAL,
+    PACKAGE_ACTION_POLICY_BULK,
+    PACKAGE_ACTION_POLICY_NONE
+} PackageActionPolicy;
 
 /*
 Adding new mutex:
@@ -1105,43 +1013,43 @@ typedef enum
 
 typedef enum
 {
-    cf_file_new,
-    cf_file_removed,
-    cf_file_content_changed,
-    cf_file_stats_changed
-}FileState;
+    FILE_STATE_NEW,
+    FILE_STATE_REMOVED,
+    FILE_STATE_CONTENT_CHANGED,
+    FILE_STATE_STATS_CHANGED
+} FileState;
 
 /************************************************************************************/
 
-enum cf_acl_method
+typedef enum
 {
-    cfacl_append,
-    cfacl_overwrite,
-    cfacl_nomethod
-};
+    ACL_METHOD_APPEND,
+    ACL_METHOD_OVERWRITE,
+    ACL_METHOD_NONE
+} AclMethod;
 
-enum cf_acl_type
+typedef enum
 {
-    cfacl_generic,
-    cfacl_posix,
-    cfacl_ntfs,
-    cfacl_notype
-};
+    ACL_TYPE_GENERIC,
+    ACL_TYPE_POSIX,
+    ACL_TYPE_NTFS_,
+    ACL_TYPE_NONE
+} AclType;
 
-enum cf_acl_inherit
+typedef enum
 {
-    cfacl_nochange,
-    cfacl_specify,
-    cfacl_parent,
-    cfacl_clear,
-    cfacl_noinherit,
-};
+    ACL_INHERITANCE_NO_CHANGE,
+    ACL_INHERITANCE_SPECIFY,
+    ACL_INHERITANCE_PARENT,
+    ACL_INHERITANCE_CLEAR,
+    ACL_INHERITANCE_NONE
+} AclInheritance;
 
 typedef struct
 {
-    enum cf_acl_method acl_method;
-    enum cf_acl_type acl_type;
-    enum cf_acl_inherit acl_directory_inherit;
+    AclMethod acl_method;
+    AclType acl_type;
+    AclInheritance acl_directory_inherit;
     Rlist *acl_entries;
     Rlist *acl_inherit_entries;
 } Acl;
@@ -1161,32 +1069,6 @@ typedef enum
     INSERT_MATCH_TYPE_IGNORE_EMBEDDED,
     INSERT_MATCH_TYPE_EXACT
 } InsertMatchType;
-
-enum monitord_rep
-{
-    mon_rep_mag,
-    mon_rep_week,
-    mon_rep_yr
-};
-
-enum software_rep
-{
-    sw_rep_installed,
-    sw_rep_patch_avail,
-    sw_rep_patch_installed
-};
-
-/*************************************************************************/
-
-enum cfd_menu
-{
-    cfd_menu_delta,
-    cfd_menu_full,
-    cfd_collect_call,
-    cfd_menu_error
-};
-
-/*************************************************************************/
 
 /*************************************************************************/
 /* Runtime constraint structures                                         */
@@ -1280,66 +1162,15 @@ typedef struct
 } DefineClasses;
 
 /*************************************************************************/
-/* Ontology                                                              */
-/*************************************************************************/
-
-typedef struct Topic_ Topic;
-typedef struct TopicAssociation_ TopicAssociation;
-
-struct Topic_
-{
-    int id;
-    char *topic_context;
-    char *topic_name;
-    char *bundle;
-    double evc;
-    TopicAssociation *associations;
-    Topic *next;
-};
-
-struct TopicAssociation_
-{
-    char *fwd_context;
-    char *fwd_name;
-    char *bwd_context;
-    char *bwd_name;
-    Item *associates;
-    TopicAssociation *next;
-};
-
-typedef struct Occurrence_ Occurrence;
-
-struct Occurrence_
-{
-    char *occurrence_context;
-    char *locator;                 /* Promiser */
-    char *bundle;
-    enum representations rep_type;
-    Rlist *represents;
-    Rlist *about_topics;    
-    Occurrence *next;
-};
-
-typedef struct Inference_ Inference;
-
-struct Inference_
-{
-    char *inference;            // Promiser
-    char *precedent;
-    char *qualifier;
-    Inference *next;
-};
-
-/*************************************************************************/
 /* SQL Database connectors                                               */
 /*************************************************************************/
 
-enum cfdbtype
+typedef enum
 {
-    cfd_mysql,
-    cfd_postgres,
-    cfd_notype
-};
+    DATABASE_TYPE_MYSQL,
+    DATABASE_TYPE_POSTGRES,
+    DATABASE_TYPE_NONE
+} DatabaseType;
 
 /*************************************************************************/
 /* Threading container                                                   */
@@ -1363,8 +1194,8 @@ typedef struct PackageManager_ PackageManager;
 struct PackageManager_
 {
     char *manager;
-    enum package_actions action;
-    enum action_policy policy;
+    PackageAction action;
+    PackageActionPolicy policy;
     PackageItem *pack_list;
     PackageItem *patch_list;
     PackageItem *patch_avail;
@@ -1390,12 +1221,12 @@ typedef struct
 {
     char *source;
     char *destination;
-    enum cfcomparison compare;
-    enum cflinktype link_type;
+    FileComparator compare;
+    FileLinkType link_type;
     Rlist *servers;
     Rlist *link_instead;
     Rlist *copy_links;
-    enum cfbackupoptions backup;
+    BackupOption backup;
     int stealth;
     int preserve;
     int collapse;
@@ -1484,8 +1315,8 @@ typedef struct
 
 typedef struct
 {
-    enum cfhashes hash;
-    enum cfchanges report_changes;
+    HashMethod hash;
+    FileChangeReport report_changes;
     int report_diffs;
     int update;
 } FileChange;
@@ -1495,7 +1326,7 @@ typedef struct
 typedef struct
 {
     char *source;
-    enum cflinktype link_type;
+    FileLinkType link_type;
     Rlist *copy_patterns;
     enum cfnofile when_no_file;
     enum cflinkchildren when_linking_children;
@@ -1569,7 +1400,7 @@ typedef struct
 
 typedef struct
 {
-    enum cfbackupoptions backup;
+    BackupOption backup;
     int empty_before_use;
     int maxfilesize;
     int joinlines;
@@ -1602,7 +1433,7 @@ typedef struct
 typedef struct
 {
     char *line_matching;
-    enum cfeditorder before_after;
+    EditOrder before_after;
     char *first_last;
 } EditLocation;
 
@@ -1672,12 +1503,12 @@ typedef struct
 
 typedef struct
 {
-    enum package_actions package_policy;
+    PackageAction package_policy;
     int have_package_methods;
     char *package_version;
     Rlist *package_architectures;
-    enum version_cmp package_select;
-    enum action_policy package_changes;
+    PackageVersionComparator package_select;
+    PackageActionPolicy package_changes;
     Rlist *package_file_repositories;
 
     char *package_default_arch_command;
@@ -1722,20 +1553,20 @@ typedef struct
 
 /*************************************************************************/
 
-enum cfmeasurepolicy
+typedef enum
 {
-    cfm_average,
-    cfm_sum,
-    cfm_first,
-    cfm_last,
-    cfm_nomeasure
-};
+    MEASURE_POLICY_AVERAGE,
+    MEASURE_POLICY_SUM,
+    MEASURE_POLICY_FIRST,
+    MEASURE_POLICY_LAST,
+    MEASURE_POLICY_NONE
+} MeasurePolicy;
 
 typedef struct
 {
     char *stream_type;
     DataType data_type;
-    enum cfmeasurepolicy policy;
+    MeasurePolicy policy;
     char *history_type;
     char *select_line_matching;
     int select_line_number;
@@ -1760,7 +1591,7 @@ typedef struct
     char *db_server_password;
     char *db_server_host;
     char *db_connect_db;
-    enum cfdbtype db_server_type;
+    DatabaseType db_server_type;
     char *server;
     char *type;
     char *operation;
@@ -1771,22 +1602,22 @@ typedef struct
 
 /*************************************************************************/
 
-enum cf_srv_policy
+typedef enum
 {
-    cfsrv_start,
-    cfsrv_stop,
-    cfsrv_disable,
-    cfsrv_restart,
-    cfsrv_reload,
-    cfsrv_nostatus
-};
+    SERVICE_POLICY_START,
+    SERVICE_POLICY_STOP,
+    SERVICE_POLICY_DISABLE,
+    SERVICE_POLICY_RESTART,
+    SERVICE_POLICY_RELOAD,
+    SERVICE_POLICY_NONE
+} ServicePolicy;
 
 typedef struct
 {
     Rlist *service_depend;
     char *service_type;
     char *service_args;
-    enum cf_srv_policy service_policy;
+    ServicePolicy service_policy;
     char *service_autostart_policy;
     char *service_depend_chain;
     FnCall *service_method;
@@ -1802,35 +1633,15 @@ typedef struct
 
 /*************************************************************************/
 
-enum cfenvironment_state
+typedef enum
 {
-    cfvs_create,
-    cfvs_delete,
-    cfvs_running,
-    cfvs_suspended,
-    cfvs_down,
-    cfvs_none
-};
-
-/*************************************************************************/
-
-enum cf_meter
-{
-    meter_compliance_week,
-    meter_compliance_day,
-    meter_compliance_hour,
-    meter_perf_day,
-    meter_other_day,
-    meter_comms_hour,
-    meter_anomalies_day,
-    meter_compliance_week_user,
-    meter_compliance_week_internal,
-    meter_compliance_day_user,
-    meter_compliance_day_internal,
-    meter_compliance_hour_user,
-    meter_compliance_hour_internal,
-    meter_endmark
-};
+    ENVIRONMENT_STATE_CREATE,
+    ENVIRONMENT_STATE_DELETE,
+    ENVIRONMENT_STATE_RUNNING,
+    ENVIRONMENT_STATE_SUSPENDED,
+    ENVIRONMENT_STATE_DOWN,
+    ENVIRONMENT_STATE_NONE
+} EnvironmentState;
 
 typedef struct
 {
@@ -1843,7 +1654,7 @@ typedef struct
     char *name;
     char *host;
     char *type;
-    enum cfenvironment_state state;
+    EnvironmentState state;
 } Environments;
 
 /* This is huge, but the simplification of logic is huge too
@@ -1934,27 +1745,7 @@ typedef struct
     int expandvars;
     int not_matching;
     Rlist *insert_match;
-
-    /* knowledge */
-
-    char *fwd_name;
-    char *bwd_name;
-    Rlist *precedents;
-    Rlist *qualifiers;
-    Rlist *associates;
-    Rlist *represents;
-    Rlist *about_topics;
-    Rlist *synonyms;
-    Rlist *general;
-    char *rep_type;
 } Attributes;
-
-/*************************************************************************/
-/* definitions for reporting                                            */
-/*************************************************************************/
-
-extern double METER_KEPT[meter_endmark];
-extern double METER_REPAIRED[meter_endmark];
 
 /*************************************************************************/
 /* common macros                                                         */

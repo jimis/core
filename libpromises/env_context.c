@@ -26,7 +26,7 @@
 
 #include "env_context.h"
 
-#include "constraints.h"
+#include "policy.h"
 #include "promises.h"
 #include "files_names.h"
 #include "logic_expressions.h"
@@ -100,7 +100,7 @@ static int EvalClassExpression(Constraint *cp, Promise *pp)
 
     if (IsDefinedClass(pp->promiser, pp->ns))
     {
-        if (GetIntConstraint("persistence", pp) == 0)
+        if (PromiseGetConstraintAsInt("persistence", pp) == 0)
         {
             CfOut(OUTPUT_LEVEL_VERBOSE, "", " ?> Cancelling cached persistent class %s", pp->promiser);
             DeletePersistentContext(pp->promiser);
@@ -213,7 +213,7 @@ static int EvalClassExpression(Constraint *cp, Promise *pp)
     {
         for (rp = (Rlist *) cp->rval.item; rp != NULL; rp = rp->next)
         {
-            result = Str2Int(rp->item);
+            result = IntFromString(rp->item);
 
             if (result < 0)
             {
@@ -260,7 +260,7 @@ static int EvalClassExpression(Constraint *cp, Promise *pp)
 
         if (total > 0)          // dist class
         {
-            prob = ((double) Str2Int(rp->item)) / ((double) total);
+            prob = ((double) IntFromString(rp->item)) / ((double) total);
             cum += prob;
 
             if ((fluct < cum) || rp->next == NULL)
@@ -1576,14 +1576,14 @@ int Abort()
 
 int VarClassExcluded(Promise *pp, char **classes)
 {
-    Constraint *cp = GetConstraint(pp, "ifvarclass");
+    Constraint *cp = PromiseGetConstraint(pp, "ifvarclass");
 
     if (cp == NULL)
     {
         return false;
     }
 
-    *classes = (char *) GetConstraintValue("ifvarclass", pp, RVAL_TYPE_SCALAR);
+    *classes = (char *) ConstraintGetRvalValue("ifvarclass", pp, RVAL_TYPE_SCALAR);
 
     if (*classes == NULL)
     {
@@ -1642,9 +1642,9 @@ void DeleteAllClasses(const Rlist *list)
 
     for (const Rlist *rp = list; rp != NULL; rp = rp->next)
     {
-        if (!CheckParseClass("class cancellation", (char *) rp->item, CF_IDRANGE))
+        if (CheckParseContext((char *) rp->item, CF_IDRANGE) != SYNTAX_TYPE_MATCH_OK)
         {
-            return;
+            return; // TODO: interesting course of action, but why is the check there in the first place?
         }
 
         if (IsHardClass((char *) rp->item))
@@ -1732,7 +1732,7 @@ void MarkPromiseHandleDone(const Promise *pp)
     }
 
     char name[CF_BUFSIZE];
-    char *handle = GetConstraintValue("handle", pp, RVAL_TYPE_SCALAR);
+    char *handle = ConstraintGetRvalValue("handle", pp, RVAL_TYPE_SCALAR);
 
     if (handle == NULL)
     {
@@ -1754,7 +1754,7 @@ int MissingDependencies(const Promise *pp)
     }
 
     char name[CF_BUFSIZE], *d;
-    Rlist *rp, *deps = GetListConstraint("depends_on", pp);
+    Rlist *rp, *deps = PromiseGetConstraintAsList("depends_on", pp);
     
     for (rp = deps; rp != NULL; rp = rp->next)
        {

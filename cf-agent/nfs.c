@@ -52,7 +52,7 @@ static void AugmentMountInfo(Rlist **list, char *host, char *source, char *mount
 static int MatchFSInFstab(char *match);
 static void DeleteThisItem(Item **liststart, Item *entry);
 
-static const char *VMOUNTCOMM[HARD_CLASSES_MAX] =
+static const char *VMOUNTCOMM[PLATFORM_CONTEXT_MAX] =
 {
     "",
     "/sbin/mount -ea",          /* hpux */
@@ -73,7 +73,7 @@ static const char *VMOUNTCOMM[HARD_CLASSES_MAX] =
     "/bin/mount -a",            /* vmware */
 };
 
-static const char *VUNMOUNTCOMM[HARD_CLASSES_MAX] =
+static const char *VUNMOUNTCOMM[PLATFORM_CONTEXT_MAX] =
 {
     "",
     "/sbin/umount",             /* hpux */
@@ -94,7 +94,7 @@ static const char *VUNMOUNTCOMM[HARD_CLASSES_MAX] =
     "/bin/umount",              /* vmware */
 };
 
-static const char *VMOUNTOPTS[HARD_CLASSES_MAX] =
+static const char *VMOUNTOPTS[PLATFORM_CONTEXT_MAX] =
 {
     "",
     "bg,hard,intr",             /* hpux */
@@ -525,11 +525,11 @@ int VerifyMount(char *name, Attributes a, Promise *pp)
 
     if (!DONTDO)
     {
-        snprintf(comm, CF_BUFSIZE, "%s -o %s %s:%s %s", GetArg0(VMOUNTCOMM[VSYSTEMHARDCLASS]), opts, host, rmountpt, mountpt);
+        snprintf(comm, CF_BUFSIZE, "%s -o %s %s:%s %s", CommandArg0(VMOUNTCOMM[VSYSTEMHARDCLASS]), opts, host, rmountpt, mountpt);
 
         if ((pfp = cf_popen(comm, "r")) == NULL)
         {
-            CfOut(OUTPUT_LEVEL_ERROR, "", " !! Failed to open pipe from %s\n", GetArg0(VMOUNTCOMM[VSYSTEMHARDCLASS]));
+            CfOut(OUTPUT_LEVEL_ERROR, "", " !! Failed to open pipe from %s\n", CommandArg0(VMOUNTCOMM[VSYSTEMHARDCLASS]));
             return 0;
         }
 

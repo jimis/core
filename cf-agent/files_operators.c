@@ -27,7 +27,6 @@
 
 #include "cf_acl.h"
 #include "env_context.h"
-#include "constraints.h"
 #include "promises.h"
 #include "dir.h"
 #include "dbm_api.h"
@@ -58,7 +57,7 @@ extern AgentConnection *COMS;
 
 /*****************************************************************************/
 
-int MoveObstruction(char *from, Attributes attr, Promise *pp, const ReportContext *report_context)
+int MoveObstruction(char *from, Attributes attr, Promise *pp)
 {
     struct stat sb;
     char stamp[CF_BUFSIZE], saved[CF_BUFSIZE];
@@ -82,7 +81,7 @@ int MoveObstruction(char *from, Attributes attr, Promise *pp, const ReportContex
             saved[0] = '\0';
             strcpy(saved, from);
 
-            if (attr.copy.backup == cfa_timestamp || attr.edits.backup == cfa_timestamp)
+            if (attr.copy.backup == BACKUP_OPTION_TIMESTAMP || attr.edits.backup == BACKUP_OPTION_TIMESTAMP)
             {
                 snprintf(stamp, CF_BUFSIZE, "_%jd_%s", (intmax_t) CFSTARTTIME, CanonifyName(cf_ctime(&now_stamp)));
                 strcat(saved, stamp);
@@ -98,7 +97,7 @@ int MoveObstruction(char *from, Attributes attr, Promise *pp, const ReportContex
                 return false;
             }
 
-            if (ArchiveToRepository(saved, attr, pp, report_context))
+            if (ArchiveToRepository(saved, attr, pp))
             {
                 unlink(saved);
             }
@@ -144,8 +143,7 @@ int MoveObstruction(char *from, Attributes attr, Promise *pp, const ReportContex
 
 /*********************************************************************/
 
-int SaveAsFile(SaveCallbackFn callback, void *param, const char *file, Attributes a, Promise *pp,
-                       const ReportContext *report_context)
+int SaveAsFile(SaveCallbackFn callback, void *param, const char *file, Attributes a, Promise *pp)
 {
     struct stat statbuf;
     char new[CF_BUFSIZE], backup[CF_BUFSIZE];
@@ -176,7 +174,7 @@ int SaveAsFile(SaveCallbackFn callback, void *param, const char *file, Attribute
 
     strcpy(backup, file);
 
-    if (a.edits.backup == cfa_timestamp)
+    if (a.edits.backup == BACKUP_OPTION_TIMESTAMP)
     {
         snprintf(stamp, CF_BUFSIZE, "_%jd_%s", (intmax_t) CFSTARTTIME, CanonifyName(cf_ctime(&stamp_now)));
         strcat(backup, stamp);
@@ -200,15 +198,15 @@ int SaveAsFile(SaveCallbackFn callback, void *param, const char *file, Attribute
         return false;
     }
 
-    if (a.edits.backup == cfa_rotate)
+    if (a.edits.backup == BACKUP_OPTION_ROTATE)
     {
         RotateFiles(backup, a.edits.rotate);
         unlink(backup);
     }
 
-    if (a.edits.backup != cfa_nobackup)
+    if (a.edits.backup != BACKUP_OPTION_NO_BACKUP)
     {
-        if (ArchiveToRepository(backup, a, pp, report_context))
+        if (ArchiveToRepository(backup, a, pp))
         {
             unlink(backup);
         }
@@ -276,8 +274,7 @@ static bool SaveItemListCallback(const char *dest_filename, const char *orig_fil
 
 /*********************************************************************/
 
-int SaveItemListAsFile(Item *liststart, const char *file, Attributes a, Promise *pp,
-                       const ReportContext *report_context)
+int SaveItemListAsFile(Item *liststart, const char *file, Attributes a, Promise *pp)
 {
-    return SaveAsFile(&SaveItemListCallback, liststart, file, a, pp, report_context);
+    return SaveAsFile(&SaveItemListCallback, liststart, file, a, pp);
 }

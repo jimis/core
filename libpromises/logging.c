@@ -33,7 +33,7 @@
 #include "cfstream.h"
 #include "string_lib.h"
 #include "transaction.h"
-#include "constraints.h"
+#include "policy.h"
 #include "rlist.h"
 
 #ifdef HAVE_NOVA
@@ -82,7 +82,7 @@ void EndAudit(int background_tasks)
     memset(&dummyp, 0, sizeof(dummyp));
     memset(&dummyattr, 0, sizeof(dummyattr));
 
-    if (BooleanControl("control_agent", CFA_CONTROLBODY[cfa_track_value].lval))
+    if (BooleanControl("control_agent", CFA_CONTROLBODY[AGENT_CONTROL_TRACK_VALUE].lval))
     {
         FILE *fout;
         char name[CF_MAXVARSIZE], datestr[CF_MAXVARSIZE];
@@ -354,7 +354,7 @@ void PromiseBanner(Promise *pp)
     char handle[CF_MAXVARSIZE];
     const char *sp;
 
-    if ((sp = GetConstraintValue("handle", pp, RVAL_TYPE_SCALAR)) || (sp = PromiseID(pp)))
+    if ((sp = ConstraintGetRvalValue("handle", pp, RVAL_TYPE_SCALAR)) || (sp = PromiseID(pp)))
     {
         strncpy(handle, sp, CF_MAXVARSIZE - 1);
     }

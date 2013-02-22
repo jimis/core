@@ -26,7 +26,6 @@
 #include "generic_agent.h"
 
 #include "env_context.h"
-#include "constraints.h"
 #include "verify_databases.h"
 #include "verify_environments.h"
 #include "verify_exec.h"
@@ -232,7 +231,7 @@ int main(int argc, char *argv[])
     GenericAgentDiscoverContext(config, report_context);
 
     Policy *policy = NULL;
-    if (GenericAgentCheckPolicy(config, report_context, ALWAYS_VALIDATE))
+    if (GenericAgentCheckPolicy(config, ALWAYS_VALIDATE))
     {
         policy = GenericAgentLoadPolicy(config->agent_type, config, report_context);
     }
@@ -525,34 +524,34 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_maxconnections].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_MAXCONNECTIONS].lval) == 0)
             {
-                CFA_MAXTHREADS = (int) Str2Int(retval.item);
+                CFA_MAXTHREADS = (int) IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET maxconnections = %d\n", CFA_MAXTHREADS);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_checksum_alert_time].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_CHECKSUM_ALERT_TIME].lval) == 0)
             {
-                CF_PERSISTENCE = (int) Str2Int(retval.item);
+                CF_PERSISTENCE = (int) IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET checksum_alert_time = %d\n", CF_PERSISTENCE);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_agentfacility].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_AGENTFACILITY].lval) == 0)
             {
                 SetFacility(retval.item);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_agentaccess].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_AGENTACCESS].lval) == 0)
             {
                 ACCESSLIST = (Rlist *) retval.item;
                 CheckAgentAccess(ACCESSLIST, InputFiles(policy));
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_refresh_processes].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_REFRESH_PROCESSES].lval) == 0)
             {
                 Rlist *rp;
 
@@ -572,7 +571,7 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_abortclasses].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_ABORTCLASSES].lval) == 0)
             {
                 Rlist *rp;
 
@@ -590,7 +589,7 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_abortbundleclasses].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_ABORTBUNDLECLASSES].lval) == 0)
             {
                 Rlist *rp;
 
@@ -611,7 +610,7 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_addclasses].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_ADDCLASSES].lval) == 0)
             {
                 Rlist *rp;
 
@@ -626,61 +625,61 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_auditing].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_AUDITING].lval) == 0)
             {
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "This option does nothing and is retained for compatibility reasons");
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_alwaysvalidate].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_ALWAYSVALIDATE].lval) == 0)
             {
-                ALWAYS_VALIDATE = GetBoolean(retval.item);
+                ALWAYS_VALIDATE = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET alwaysvalidate = %d\n", ALWAYS_VALIDATE);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_allclassesreport].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_ALLCLASSESREPORT].lval) == 0)
             {
-                ALLCLASSESREPORT = GetBoolean(retval.item);
+                ALLCLASSESREPORT = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET allclassesreport = %d\n", ALLCLASSESREPORT);
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_secureinput].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_SECUREINPUT].lval) == 0)
             {
-                CFPARANOID = GetBoolean(retval.item);
+                CFPARANOID = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET secure input = %d\n", CFPARANOID);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_binarypaddingchar].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_BINARYPADDINGCHAR].lval) == 0)
             {
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "binarypaddingchar is obsolete and does nothing\n");
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_bindtointerface].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_BINDTOINTERFACE].lval) == 0)
             {
                 strncpy(BINDINTERFACE, retval.item, CF_BUFSIZE - 1);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET bindtointerface = %s\n", BINDINTERFACE);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_hashupdates].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_HASHUPDATES].lval) == 0)
             {
-                bool enabled = GetBoolean(retval.item);
+                bool enabled = BooleanFromString(retval.item);
 
                 SetChecksumUpdates(enabled);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET ChecksumUpdates %d\n", enabled);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_exclamation].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_EXCLAMATION].lval) == 0)
             {
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "exclamation control is deprecated and does not do anything\n");
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_childlibpath].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_CHILDLIBPATH].lval) == 0)
             {
                 char output[CF_BUFSIZE];
 
@@ -692,65 +691,65 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_defaultcopytype].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_DEFAULTCOPYTYPE].lval) == 0)
             {
                 DEFAULT_COPYTYPE = (char *) retval.item;
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET defaultcopytype = %s\n", DEFAULT_COPYTYPE);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_fsinglecopy].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_FSINGLECOPY].lval) == 0)
             {
                 SINGLE_COPY_LIST = (Rlist *) retval.item;
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET file single copy list\n");
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_fautodefine].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_FAUTODEFINE].lval) == 0)
             {
                 SetFileAutoDefineList(RvalRlistValue(retval));
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET file auto define list\n");
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_dryrun].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_DRYRUN].lval) == 0)
             {
-                DONTDO = GetBoolean(retval.item);
+                DONTDO = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET dryrun = %c\n", DONTDO);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_inform].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_INFORM].lval) == 0)
             {
-                INFORM = GetBoolean(retval.item);
+                INFORM = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET inform = %c\n", INFORM);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_verbose].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_VERBOSE].lval) == 0)
             {
-                VERBOSE = GetBoolean(retval.item);
+                VERBOSE = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET inform = %c\n", VERBOSE);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_repository].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_REPOSITORY].lval) == 0)
             {
                 SetRepositoryLocation(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET repository = %s\n", RvalScalarValue(retval));
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_skipidentify].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_SKIPIDENTIFY].lval) == 0)
             {
-                bool enabled = GetBoolean(retval.item);
+                bool enabled = BooleanFromString(retval.item);
 
                 SetSkipIdentify(enabled);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET skipidentify = %d\n", (int) enabled);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_suspiciousnames].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_SUSPICIOUSNAMES].lval) == 0)
             {
 
                 for (rp = (Rlist *) retval.item; rp != NULL; rp = rp->next)
@@ -762,7 +761,7 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_repchar].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_REPCHAR].lval) == 0)
             {
                 char c = *(char *) retval.item;
 
@@ -771,44 +770,44 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_mountfilesystems].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_MOUNTFILESYSTEMS].lval) == 0)
             {
-                CF_MOUNTALL = GetBoolean(retval.item);
+                CF_MOUNTALL = BooleanFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET mountfilesystems = %d\n", CF_MOUNTALL);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_editfilesize].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_EDITFILESIZE].lval) == 0)
             {
-                EDITFILESIZE = Str2Int(retval.item);
+                EDITFILESIZE = IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET EDITFILESIZE = %d\n", EDITFILESIZE);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_ifelapsed].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_IFELAPSED].lval) == 0)
             {
-                VIFELAPSED = Str2Int(retval.item);
+                VIFELAPSED = IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET ifelapsed = %d\n", VIFELAPSED);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_expireafter].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_EXPIREAFTER].lval) == 0)
             {
-                VEXPIREAFTER = Str2Int(retval.item);
+                VEXPIREAFTER = IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET ifelapsed = %d\n", VEXPIREAFTER);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_timeout].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_TIMEOUT].lval) == 0)
             {
-                CONNTIMEOUT = Str2Int(retval.item);
+                CONNTIMEOUT = IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET timeout = %jd\n", (intmax_t) CONNTIMEOUT);
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_max_children].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_MAX_CHILDREN].lval) == 0)
             {
-                CFA_BACKGROUND_LIMIT = Str2Int(retval.item);
+                CFA_BACKGROUND_LIMIT = IntFromString(retval.item);
                 CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET MAX_CHILDREN = %d\n", CFA_BACKGROUND_LIMIT);
                 if (CFA_BACKGROUND_LIMIT > 10)
                 {
@@ -819,13 +818,13 @@ void KeepControlPromises(Policy *policy)
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_syslog].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_SYSLOG].lval) == 0)
             {
-                CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET syslog = %d\n", GetBoolean(retval.item));
+                CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET syslog = %d\n", BooleanFromString(retval.item));
                 continue;
             }
 
-            if (strcmp(cp->lval, CFA_CONTROLBODY[cfa_environment].lval) == 0)
+            if (strcmp(cp->lval, CFA_CONTROLBODY[AGENT_CONTROL_ENVIRONMENT].lval) == 0)
             {
                 Rlist *rp;
 
@@ -844,24 +843,24 @@ void KeepControlPromises(Policy *policy)
         }
     }
 
-    if (GetVariable("control_common", CFG_CONTROLBODY[cfg_lastseenexpireafter].lval, &retval) != DATA_TYPE_NONE)
+    if (GetVariable("control_common", CFG_CONTROLBODY[COMMON_CONTROL_LASTSEEN_EXPIRE_AFTER].lval, &retval) != DATA_TYPE_NONE)
     {
-        LASTSEENEXPIREAFTER = Str2Int(retval.item) * 60;
+        LASTSEENEXPIREAFTER = IntFromString(retval.item) * 60;
     }
 
-    if (GetVariable("control_common", CFG_CONTROLBODY[cfg_fips_mode].lval, &retval) != DATA_TYPE_NONE)
+    if (GetVariable("control_common", CFG_CONTROLBODY[COMMON_CONTROL_FIPS_MODE].lval, &retval) != DATA_TYPE_NONE)
     {
-        FIPS_MODE = GetBoolean(retval.item);
+        FIPS_MODE = BooleanFromString(retval.item);
         CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET FIPS_MODE = %d\n", FIPS_MODE);
     }
 
-    if (GetVariable("control_common", CFG_CONTROLBODY[cfg_syslog_port].lval, &retval) != DATA_TYPE_NONE)
+    if (GetVariable("control_common", CFG_CONTROLBODY[COMMON_CONTROL_SYSLOG_PORT].lval, &retval) != DATA_TYPE_NONE)
     {
-        SetSyslogPort(Str2Int(retval.item));
+        SetSyslogPort(IntFromString(retval.item));
         CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET syslog_port to %s", RvalScalarValue(retval));
     }
 
-    if (GetVariable("control_common", CFG_CONTROLBODY[cfg_syslog_host].lval, &retval) != DATA_TYPE_NONE)
+    if (GetVariable("control_common", CFG_CONTROLBODY[COMMON_CONTROL_SYSLOG_HOST].lval, &retval) != DATA_TYPE_NONE)
     {
         SetSyslogHost(Hostname2IPString(retval.item));
         CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET syslog_host to %s", Hostname2IPString(retval.item));
@@ -1126,6 +1125,67 @@ static void CheckAgentAccess(Rlist *list, const Rlist *input_files)
 
 /*********************************************************************/
 
+/**************************************************************/
+
+static void DefaultVarPromise(const Promise *pp)
+{
+    char *regex = ConstraintGetRvalValue("if_match_regex", pp, RVAL_TYPE_SCALAR);
+    Rval rval;
+    DataType dt;
+    Rlist *rp;
+    bool okay = true;
+
+    dt = GetVariable("this", pp->promiser, &rval);
+
+    switch (dt)
+       {
+       case DATA_TYPE_STRING:
+       case DATA_TYPE_INT:
+       case DATA_TYPE_REAL:
+
+           if (regex && !FullTextMatch(regex,rval.item))
+              {
+              return;
+              }
+
+           if (regex == NULL)
+              {
+              return;
+              }
+
+           break;
+
+       case DATA_TYPE_STRING_LIST:
+       case DATA_TYPE_INT_LIST:
+       case DATA_TYPE_REAL_LIST:
+
+           if (regex)
+              {
+              for (rp = (Rlist *) rval.item; rp != NULL; rp = rp->next)
+                 {
+                 if (FullTextMatch(regex,rp->item))
+                    {
+                    okay = false;
+                    break;
+                    }
+                 }
+
+              if (okay)
+                 {
+                 return;
+                 }
+              }
+
+       break;
+
+       default:
+           break;
+       }
+
+    DeleteScalar(pp->bundle, pp->promiser);
+    ConvergeVarHashPromise(pp->bundle, pp, true);
+}
+
 static void KeepAgentPromise(Promise *pp, const ReportContext *report_context)
 {
     char *sp = NULL;
@@ -1228,7 +1288,7 @@ static void KeepAgentPromise(Promise *pp, const ReportContext *report_context)
 
     if (strcmp("files", pp->agentsubtype) == 0)
     {
-        if (GetBooleanConstraint("background", pp))
+        if (PromiseGetConstraintAsBoolean("background", pp))
         {
             ParallelFindAndVerifyFilesPromises(pp, report_context);
         }
@@ -1363,7 +1423,7 @@ static void DeleteTypeContext(Policy *policy, TypeSequence type, const ReportCon
         {
             if (FSTABLIST)
             {
-                SaveItemListAsFile(FSTABLIST, VFSTAB[VSYSTEMHARDCLASS], a, NULL, report_context);
+                SaveItemListAsFile(FSTABLIST, VFSTAB[VSYSTEMHARDCLASS], a, NULL);
                 DeleteItemList(FSTABLIST);
                 FSTABLIST = NULL;
             }
@@ -1459,7 +1519,7 @@ static void ParallelFindAndVerifyFilesPromises(Promise *pp, const ReportContext 
 
 static void ParallelFindAndVerifyFilesPromises(Promise *pp, const ReportContext *report_context)
 {
-    int background = GetBooleanConstraint("background", pp);
+    int background = PromiseGetConstraintAsBoolean("background", pp);
     pid_t child = 1;
 
     if (background && (CFA_BACKGROUND < CFA_BACKGROUND_LIMIT))

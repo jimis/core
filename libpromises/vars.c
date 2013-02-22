@@ -25,7 +25,6 @@
 
 #include "vars.h"
 
-#include "constraints.h"
 #include "conversion.h"
 #include "reporting.h"
 #include "expand.h"
@@ -37,6 +36,7 @@
 #include "logging.h"
 #include "misc_lib.h"
 #include "rlist.h"
+#include "policy.h"
 
 static int IsCf3Scalar(char *str);
 static int CompareVariableValue(Rval rval, CfAssoc *ap);
@@ -54,26 +54,6 @@ void LoadSystemConstants()
 
 /*******************************************************************/
 /* Variables                                                       */
-/*******************************************************************/
-
-void ForceScalar(char *lval, char *rval)
-{
-    Rval retval;
-
-    if (THIS_AGENT_TYPE != AGENT_TYPE_AGENT && THIS_AGENT_TYPE != AGENT_TYPE_KNOW)
-    {
-        return;
-    }
-
-    if (GetVariable("match", lval, &retval) != DATA_TYPE_NONE)
-    {
-        DeleteVariable("match", lval);
-    }
-
-    NewScalar("match", lval, rval, DATA_TYPE_STRING);
-    CfDebug("Setting local variable \"match.%s\" context; $(%s) = %s\n", lval, lval, rval);
-}
-
 /*******************************************************************/
 
 void NewScalar(const char *scope, const char *lval, const char *rval, DataType dt)
@@ -281,68 +261,6 @@ static int CompareVariableValue(Rval rval, CfAssoc *ap)
     }
 
     return strcmp(ap->rval.item, rval.item);
-}
-
-/*******************************************************************/
-
-void DefaultVarPromise(Promise *pp)
-
-{
-    char *regex = GetConstraintValue("if_match_regex", pp, RVAL_TYPE_SCALAR);
-    Rval rval;
-    DataType dt;
-    Rlist *rp;
-    bool okay = true;
-
-    dt = GetVariable("this", pp->promiser, &rval);
-
-    switch (dt)
-       {
-       case DATA_TYPE_STRING:
-       case DATA_TYPE_INT:
-       case DATA_TYPE_REAL:
-
-           if (regex && !FullTextMatch(regex,rval.item))
-              {
-              return;
-              }
-
-           if (regex == NULL)
-              {
-              return;
-              }
-
-           break;
-           
-       case DATA_TYPE_STRING_LIST:
-       case DATA_TYPE_INT_LIST:
-       case DATA_TYPE_REAL_LIST:
-
-           if (regex)
-              {
-              for (rp = (Rlist *) rval.item; rp != NULL; rp = rp->next)
-                 {
-                 if (FullTextMatch(regex,rp->item))
-                    {
-                    okay = false;
-                    break;
-                    }
-                 }
-              
-              if (okay)
-                 {
-                 return;
-                 }
-              }
-           
-       break;
-       
-       default:
-           break;           
-       }
-
-    DeleteScalar(pp->bundle, pp->promiser);
-    ConvergeVarHashPromise(pp->bundle, pp, true);
 }
 
 /*******************************************************************/
@@ -648,7 +566,7 @@ int BooleanControl(const char *scope, const char *name)
 
     if (GetVariable(scope, name, &retval) != DATA_TYPE_NONE)
     {
-        return GetBoolean(retval.item);
+        return BooleanFromString(retval.item);
     }
 
     return false;
@@ -831,24 +749,6 @@ int IsQualifiedVariable(char *var)
     return false;
 }
 
-/*********************************************************************/
-
-int IsCfList(char *type)
-{
-    char *listTypes[] = { "sl", "il", "rl", "ml", NULL };
-    int i;
-
-    for (i = 0; listTypes[i] != NULL; i++)
-    {
-        if (strcmp(type, listTypes[i]) == 0)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 /*******************************************************************/
 
 int AddVariableHash(const char *scope, const char *lval, Rval rval, DataType dtype, const char *fname,
@@ -998,7 +898,7 @@ void DeRefListsInHashtable(char *scope, Rlist *namelist, Rlist *dereflist)
     Scope *ptr;
     Rlist *rp;
     CfAssoc *cplist;
-    HashIterator i;
+    AssocHashTableIterator i;
     CfAssoc *assoc;
 
     if ((len = RlistLen(namelist)) != RlistLen(dereflist))

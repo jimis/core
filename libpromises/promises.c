@@ -25,7 +25,6 @@
 
 #include "promises.h"
 
-#include "constraints.h"
 #include "policy.h"
 #include "syntax.h"
 #include "expand.h"
@@ -501,7 +500,7 @@ void PromiseRef(OutputLevel level, const Promise *pp)
 
 /*******************************************************************/
 
-void HashPromise(char *salt, Promise *pp, unsigned char digest[EVP_MAX_MD_SIZE + 1], enum cfhashes type)
+void HashPromise(char *salt, Promise *pp, unsigned char digest[EVP_MAX_MD_SIZE + 1], HashMethod type)
 {
     EVP_MD_CTX context;
     int md_len;

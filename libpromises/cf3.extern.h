@@ -31,7 +31,6 @@ extern pid_t ALARM_PID;
 extern RSA *PRIVKEY, *PUBKEY;
 extern char PUBKEY_DIGEST[CF_MAXVARSIZE];
 extern char BINDINTERFACE[CF_BUFSIZE];
-extern const Sock ECGSOCKS[ATTR];
 
 extern Audit *AUDITPTR;
 extern Audit *VAUDIT;
@@ -68,7 +67,7 @@ extern char VIPADDRESS[];
 extern char VPREFIX[];
 
 extern char VDOMAIN[CF_MAXVARSIZE];
-extern enum classes VSYSTEMHARDCLASS;
+extern PlatformContext VSYSTEMHARDCLASS;
 extern char VFQNAME[];
 extern char VUQNAME[];
 
@@ -101,7 +100,7 @@ extern char EXPIRY[CF_SMALLBUF];
 extern char LICENSE_COMPANY[CF_SMALLBUF];
 extern int CF_TOPICS;
 extern int CF_OCCUR;
-extern enum cfhashes CF_DEFAULT_DIGEST;
+extern HashMethod CF_DEFAULT_DIGEST;
 extern int CF_DEFAULT_DIGEST_LEN;
 
 extern Scope *VSCOPE;
@@ -110,7 +109,6 @@ extern Audit *VAUDIT;
 extern Item *DONELIST;
 extern char *CBUNDLESEQUENCE_STR;
 extern Item *ROTATED;
-extern Rlist *GOALS;
 
 extern Rlist *CF_STCK;
 extern int EDIT_MODEL;

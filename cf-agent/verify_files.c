@@ -25,7 +25,6 @@
 
 #include "cf3.defs.h"
 
-#include "constraints.h"
 #include "promises.h"
 #include "vars.h"
 #include "dir.h"
@@ -52,21 +51,21 @@
 
 
 static void LoadSetuid(Attributes a, Promise *pp);
-static void SaveSetuid(Attributes a, Promise *pp, const ReportContext *report_context);
+static void SaveSetuid(Attributes a, Promise *pp);
 static void FindFilePromiserObjects(Promise *pp, const ReportContext *report_context);
 
 /*****************************************************************************/
 
 void LocateFilePromiserGroup(char *wildpath, Promise *pp, void (*fnptr) (char *path, Promise *ptr, const ReportContext *report_context),
-                             const ReportContext *report_context)
+                             const ReportContext *report_context) /* FIXME */
 {
     Item *path, *ip, *remainder = NULL;
     char pbuffer[CF_BUFSIZE];
     struct stat statbuf;
     int count = 0, lastnode = false, expandregex = false;
     uid_t agentuid = getuid();
-    int create = GetBooleanConstraint("create", pp);
-    char *pathtype = GetConstraintValue("pathtype", pp, RVAL_TYPE_SCALAR);
+    int create = PromiseGetConstraintAsBoolean("create", pp);
+    char *pathtype = ConstraintGetRvalValue("pathtype", pp, RVAL_TYPE_SCALAR);
 
     CfDebug("LocateFilePromiserGroup(%s)\n", wildpath);
 
@@ -271,9 +270,9 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
     {
         if ((a.create) || (a.touch))
         {
-            if (!CfCreateFile(path, pp, a, report_context))
+            if (!CfCreateFile(path, pp, a))
             {
-                SaveSetuid(a, pp, report_context);
+                SaveSetuid(a, pp);
                 YieldCurrentLock(thislock);
                 return;
             }
@@ -320,11 +319,11 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
         }
     }
 
-    if (exists && (!VerifyFileLeaf(path, &oslb, a, pp, report_context)))
+    if (exists && (!VerifyFileLeaf(path, &oslb, a, pp)))
     {
         if (!S_ISDIR(oslb.st_mode))
         {
-            SaveSetuid(a, pp, report_context);
+            SaveSetuid(a, pp);
             YieldCurrentLock(thislock);
             return;
         }
@@ -334,9 +333,9 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
     {
         if ((a.create) || (a.touch))
         {
-            if (!CfCreateFile(path, pp, a, report_context))
+            if (!CfCreateFile(path, pp, a))
             {
-                SaveSetuid(a, pp, report_context);
+                SaveSetuid(a, pp);
                 YieldCurrentLock(thislock);
                 return;
             }
@@ -359,7 +358,7 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
                 CfOut(OUTPUT_LEVEL_INFORM, "",
                       "Warning: depth_search (recursion) is promised for a base object %s that is not a directory",
                       path);
-                SaveSetuid(a, pp, report_context);
+                SaveSetuid(a, pp);
                 YieldCurrentLock(thislock);
                 return;
             }
@@ -376,7 +375,7 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
             {
                 CfOut(OUTPUT_LEVEL_ERROR, "", "Cannot promise to link the children of %s as it is not a directory!",
                       a.link.source);
-                SaveSetuid(a, pp, report_context);
+                SaveSetuid(a, pp);
                 YieldCurrentLock(thislock);
                 return;
             }
@@ -394,7 +393,7 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
             SetSearchDevice(&oslb, pp);
         }
 
-        DepthSearch(path, &oslb, rlevel, a, pp, report_context);
+        DepthSearch(path, &oslb, rlevel, a, pp);
 
         /* normally searches do not include the base directory */
 
@@ -405,7 +404,7 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
             /* Handle this node specially */
 
             a.havedepthsearch = false;
-            DepthSearch(path, &oslb, rlevel, a, pp, report_context);
+            DepthSearch(path, &oslb, rlevel, a, pp);
             a.havedepthsearch = save_search;
         }
         else
@@ -417,7 +416,7 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
             }
         }
 
-        if (((a.change.report_changes) == cfa_contentchange) || ((a.change.report_changes) == cfa_allchanges))
+        if (((a.change.report_changes) == FILE_CHANGE_REPORT_CONTENT_CHANGE) || ((a.change.report_changes) == FILE_CHANGE_REPORT_ALL))
         {
             if (a.havedepthsearch)
             {
@@ -434,18 +433,18 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
 
     if (a.havecopy)
     {
-        ScheduleCopyOperation(path, a, pp, report_context);
+        ScheduleCopyOperation(path, a, pp);
     }
 
 /* Phase 2b link after copy in case need file first */
 
     if ((a.havelink) && (a.link.link_children))
     {
-        ScheduleLinkChildrenOperation(path, a.link.source, 1, a, pp, report_context);
+        ScheduleLinkChildrenOperation(path, a.link.source, 1, a, pp);
     }
     else if (a.havelink)
     {
-        ScheduleLinkOperation(path, a.link.source, a, pp, report_context);
+        ScheduleLinkOperation(path, a.link.source, a, pp);
     }
 
 /* Phase 3 - content editing */
@@ -459,10 +458,10 @@ void VerifyFilePromise(char *path, Promise *pp, const ReportContext *report_cont
 
     if ((cfstat(path, &osb) != -1) && (S_ISREG(osb.st_mode)))
     {
-        VerifyFileLeaf(path, &osb, a, pp, report_context);
+        VerifyFileLeaf(path, &osb, a, pp);
     }
 
-    SaveSetuid(a, pp, report_context);
+    SaveSetuid(a, pp);
     YieldCurrentLock(thislock);
 }
 
@@ -491,7 +490,7 @@ int ScheduleEditOperation(char *filename, Attributes a, Promise *pp, const Repor
     if (pp->edcontext == NULL)
     {
         cfPS(OUTPUT_LEVEL_ERROR, CF_FAIL, "", pp, a, "File %s was marked for editing but could not be opened\n", filename);
-        FinishEditContext(pp->edcontext, a, pp, report_context);
+        FinishEditContext(pp->edcontext, a, pp);
         YieldCurrentLock(thislock);
         return false;
     }
@@ -500,20 +499,20 @@ int ScheduleEditOperation(char *filename, Attributes a, Promise *pp, const Repor
 
     if (a.haveeditline)
     {
-        if ((vp = GetConstraintValue("edit_line", pp, RVAL_TYPE_FNCALL)))
+        if ((vp = ConstraintGetRvalValue("edit_line", pp, RVAL_TYPE_FNCALL)))
         {
             fp = (FnCall *) vp;
             strcpy(edit_bundle_name, fp->name);
             params = fp->args;
         }
-        else if ((vp = GetConstraintValue("edit_line", pp, RVAL_TYPE_SCALAR)))
+        else if ((vp = ConstraintGetRvalValue("edit_line", pp, RVAL_TYPE_SCALAR)))
         {
             strcpy(edit_bundle_name, (char *) vp);
             params = NULL;
         }             
         else
         {
-            FinishEditContext(pp->edcontext, a, pp, report_context);
+            FinishEditContext(pp->edcontext, a, pp);
             YieldCurrentLock(thislock);
             return false;
         }
@@ -558,20 +557,20 @@ int ScheduleEditOperation(char *filename, Attributes a, Promise *pp, const Repor
 
     if (a.haveeditxml)
     {
-        if ((vp = GetConstraintValue("edit_xml", pp, RVAL_TYPE_FNCALL)))
+        if ((vp = ConstraintGetRvalValue("edit_xml", pp, RVAL_TYPE_FNCALL)))
         {
             fp = (FnCall *) vp;
             strcpy(edit_bundle_name, fp->name);
             params = fp->args;
         }
-        else if ((vp = GetConstraintValue("edit_xml", pp, RVAL_TYPE_SCALAR)))
+        else if ((vp = ConstraintGetRvalValue("edit_xml", pp, RVAL_TYPE_SCALAR)))
         {
             strcpy(edit_bundle_name, (char *) vp);
             params = NULL;
         }
         else
         {
-            FinishEditContext(pp->edcontext, a, pp, report_context);
+            FinishEditContext(pp->edcontext, a, pp);
             YieldCurrentLock(thislock);
             return false;
         }
@@ -623,7 +622,7 @@ int ScheduleEditOperation(char *filename, Attributes a, Promise *pp, const Repor
         // FIXME: why it crashes? DeleteBundles(bp);
     }
 
-    FinishEditContext(pp->edcontext, a, pp, report_context);
+    FinishEditContext(pp->edcontext, a, pp);
     YieldCurrentLock(thislock);
     return retval;
 }
@@ -649,8 +648,8 @@ void *FindAndVerifyFilesPromises(Promise *pp, const ReportContext *report_contex
 
 static void FindFilePromiserObjects(Promise *pp, const ReportContext *report_context)
 {
-    char *val = GetConstraintValue("pathtype", pp, RVAL_TYPE_SCALAR);
-    int literal = (GetBooleanConstraint("copy_from", pp)) || ((val != NULL) && (strcmp(val, "literal") == 0));
+    char *val = ConstraintGetRvalValue("pathtype", pp, RVAL_TYPE_SCALAR);
+    int literal = (PromiseGetConstraintAsBoolean("copy_from", pp)) || ((val != NULL) && (strcmp(val, "literal") == 0));
 
 /* Check if we are searching over a regular expression */
 
@@ -672,7 +671,7 @@ static void LoadSetuid(Attributes a, Promise *pp)
     char filename[CF_BUFSIZE];
 
     b = a;
-    b.edits.backup = cfa_nobackup;
+    b.edits.backup = BACKUP_OPTION_NO_BACKUP;
     b.edits.maxfilesize = 1000000;
 
     snprintf(filename, CF_BUFSIZE, "%s/cfagent.%s.log", CFWORKDIR, VSYSNAME.nodename);
@@ -686,13 +685,13 @@ static void LoadSetuid(Attributes a, Promise *pp)
 
 /*********************************************************************/
 
-static void SaveSetuid(Attributes a, Promise *pp, const ReportContext *report_context)
+static void SaveSetuid(Attributes a, Promise *pp)
 {
     Attributes b = { {0} };
     char filename[CF_BUFSIZE];
 
     b = a;
-    b.edits.backup = cfa_nobackup;
+    b.edits.backup = BACKUP_OPTION_NO_BACKUP;
     b.edits.maxfilesize = 1000000;
 
     snprintf(filename, CF_BUFSIZE, "%s/cfagent.%s.log", CFWORKDIR, VSYSNAME.nodename);
@@ -702,7 +701,7 @@ static void SaveSetuid(Attributes a, Promise *pp, const ReportContext *report_co
 
     if (!CompareToFile(VSETUIDLIST, filename, a, pp))
     {
-        SaveItemListAsFile(VSETUIDLIST, filename, b, pp, report_context);
+        SaveItemListAsFile(VSETUIDLIST, filename, b, pp);
     }
 
     DeleteItemList(VSETUIDLIST);

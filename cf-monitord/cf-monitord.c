@@ -27,7 +27,6 @@
 
 #include "env_context.h"
 #include "env_monitor.h"
-#include "constraints.h"
 #include "conversion.h"
 #include "reporting.h"
 #include "vars.h"
@@ -228,7 +227,7 @@ static void KeepPromises(Policy *policy, const ReportContext *report_context)
 
             if (strcmp(cp->lval, CFM_CONTROLBODY[MONITOR_CONTROL_TCP_DUMP].lval) == 0)
             {
-                MonNetworkSnifferEnable(GetBoolean(retval.item));
+                MonNetworkSnifferEnable(BooleanFromString(retval.item));
             }
 
             if (strcmp(cp->lval, CFM_CONTROLBODY[MONITOR_CONTROL_FORGET_RATE].lval) == 0)

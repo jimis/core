@@ -218,6 +218,19 @@ field_edits:
 
 ##
 
+bundle edit_line regex_replace(find,replace)
+# You can think of this like a PCRE powered sed.
+# Find exactly a regular expression and replace exactly the match with a string.
+{
+replace_patterns:
+
+ "$(find)"
+     replace_with => value("$(replace)"),
+          comment => "Search and replace string";
+}
+
+##
+
 bundle edit_line resolvconf(search,list)
 
  # search is the search domains with space
@@ -404,6 +417,7 @@ vars:
   # Be careful if the index string contains funny chars
 
   "cindex[$(index)]" string => canonify("$(index)");
+  "cv"               string => canonify("$(v)");
 
 field_edits:
 
@@ -412,7 +426,7 @@ field_edits:
   "\s*$(index)\s*=.*"
 
      edit_field => col("=","2","$($(v)[$(index)])","set"),
-        classes => if_ok("$(cindex[$(index)])_in_file"),
+        classes => if_ok("$(cv)_$(cindex[$(index)])_in_file"),
         comment => "Match a line starting like key = something";
 
 insert_lines:
@@ -420,7 +434,7 @@ insert_lines:
   "$(index)=$($(v)[$(index)])",
 
          comment => "Insert a variable definition",
-      ifvarclass => "!$(cindex[$(index)])_in_file";
+      ifvarclass => "!$(cv)_$(cindex[$(index)])_in_file";
 }
 
 bundle edit_line set_config_values(v)

@@ -481,7 +481,7 @@ static int BusyWithConnection(ServerConnectionState *conn)
             return false;
         }
 
-        if (!AccessControl(GetArg0(CFRUNCOMMAND), conn, false, VADMIT, VDENY))
+        if (!AccessControl(CommandArg0(CFRUNCOMMAND), conn, false, VADMIT, VDENY))
         {
             CfOut(OUTPUT_LEVEL_INFORM, "", "Server refusal due to denied access to requested object\n");
             RefuseAccess(conn, sendbuffer, 0, recvbuffer);
@@ -2061,7 +2061,7 @@ static int AuthenticationDialogue(ServerConnectionState *conn, char *recvbuffer,
     unsigned long err;
     RSA *newkey;
     int digestLen = 0;
-    enum cfhashes digestType;
+    HashMethod digestType;
 
     if ((PRIVKEY == NULL) || (PUBKEY == NULL))
     {
@@ -2076,7 +2076,7 @@ static int AuthenticationDialogue(ServerConnectionState *conn, char *recvbuffer,
     }
     else
     {
-        digestType = cf_md5;
+        digestType = HASH_METHOD_MD5;
         digestLen = CF_MD5_LEN;
     }
 
@@ -2436,7 +2436,7 @@ static int StatFile(ServerConnectionState *conn, char *sendbuffer, char *ofilena
     if (S_ISLNK(statbuf.st_mode))
     {
         islink = true;
-        cfst.cf_type = cf_link; /* pointless - overwritten */
+        cfst.cf_type = FILE_TYPE_LINK; /* pointless - overwritten */
         cfst.cf_lmode = statbuf.st_mode & 07777;
         cfst.cf_nlink = statbuf.st_nlink;
 
@@ -2475,32 +2475,32 @@ static int StatFile(ServerConnectionState *conn, char *sendbuffer, char *ofilena
 
     if (S_ISDIR(statbuf.st_mode))
     {
-        cfst.cf_type = cf_dir;
+        cfst.cf_type = FILE_TYPE_DIR;
     }
 
     if (S_ISREG(statbuf.st_mode))
     {
-        cfst.cf_type = cf_reg;
+        cfst.cf_type = FILE_TYPE_REGULAR;
     }
 
     if (S_ISSOCK(statbuf.st_mode))
     {
-        cfst.cf_type = cf_sock;
+        cfst.cf_type = FILE_TYPE_SOCK;
     }
 
     if (S_ISCHR(statbuf.st_mode))
     {
-        cfst.cf_type = cf_char;
+        cfst.cf_type = FILE_TYPE_CHAR;
     }
 
     if (S_ISBLK(statbuf.st_mode))
     {
-        cfst.cf_type = cf_block;
+        cfst.cf_type = FILE_TYPE_BLOCK;
     }
 
     if (S_ISFIFO(statbuf.st_mode))
     {
-        cfst.cf_type = cf_fifo;
+        cfst.cf_type = FILE_TYPE_FIFO;
     }
 
     cfst.cf_mode = statbuf.st_mode & 07777;
@@ -2839,7 +2839,7 @@ static void CompareLocalHash(ServerConnectionState *conn, char *sendbuffer, char
 
     HashFile(filename, digest2, CF_DEFAULT_DIGEST);
 
-    if ((HashesMatch(digest1, digest2, CF_DEFAULT_DIGEST)) || (HashesMatch(digest1, digest2, cf_md5)))
+    if ((HashesMatch(digest1, digest2, CF_DEFAULT_DIGEST)) || (HashesMatch(digest1, digest2, HASH_METHOD_MD5)))
     {
         sprintf(sendbuffer, "%s", CFD_FALSE);
         CfDebug("Hashes matched ok\n");
