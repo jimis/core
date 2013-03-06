@@ -625,7 +625,10 @@ bool IsProcessNameRunning(char *procNameRegex)
             continue;
         }
 
-        if (SelectProcRegexMatch("CMD", "COMMAND", procNameRegex, colHeaders, lineSplit))
+        /* On Linux the COMMAND column from ps contains only the process
+           basename, so we prefer this over CMD to avoid matching against all
+           arguments. */
+        if (SelectProcRegexMatch("COMMAND", "CMD", procNameRegex, colHeaders, lineSplit))
         {
             matched = true;
             break;
