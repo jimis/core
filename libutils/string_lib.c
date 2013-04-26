@@ -819,3 +819,12 @@ char *MemSpanInverse(const char *mem, char c, size_t n)
 
     return (char *)mem;
 }
+
+char *xstrcpy(char *dst, const char *src, size_t size)
+{
+    strncpy(dst, src, size);
+    if (size > 0 && dst[size-1] != '\0')
+        ProgrammingError ("xstrcpy: string \"%s\" does not fit in char[%lu]!",
+                          src, size);
+    return dst;
+}

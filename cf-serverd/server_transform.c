@@ -452,11 +452,24 @@ static void KeepControlPromises(EvalContext *ctx, Policy *policy, GenericAgentCo
 
             if (strcmp(cp->lval, CFS_CONTROLBODY[SERVER_CONTROL_PORT_NUMBER].lval) == 0)
             {
-                SHORT_CFENGINEPORT = (short) IntFromString(retval.item);
-                strncpy(STR_CFENGINEPORT, retval.item, 15);
-                CfOut(OUTPUT_LEVEL_VERBOSE, "", "SET default portnumber = %u = %s = %s\n", (int) SHORT_CFENGINEPORT, STR_CFENGINEPORT,
-                      RvalScalarValue(retval));
-                SHORT_CFENGINEPORT = htons((short) IntFromString(retval.item));
+                if (SERVER_PORT_ARG != 0)
+                {
+                    CfOut(OUTPUT_LEVEL_VERBOSE, "",
+                          "Ignoring port number in body server control because it's set by command line argument");
+                    SHORT_CFENGINEPORT = htons(SERVER_PORT_ARG);
+                    snprintf(STR_CFENGINEPORT, sizeof(STR_CFENGINEPORT),
+                             "%hu", SERVER_PORT_ARG);
+                }
+                else
+                {
+                    SHORT_CFENGINEPORT = htons((unsigned short)
+                                               IntFromString(retval.item));
+                    strncpy(STR_CFENGINEPORT, retval.item, 15);
+                    CfOut(OUTPUT_LEVEL_VERBOSE, "",
+                          "SET default portnumber = %hu = %s = %s\n",
+                          ntohs(SHORT_CFENGINEPORT), STR_CFENGINEPORT,
+                          RvalScalarValue(retval));
+                }
                 continue;
             }
 

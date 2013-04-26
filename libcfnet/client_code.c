@@ -125,11 +125,13 @@ void DetermineCfenginePort()
     {
         if (errno == 0)
         {
-            CfOut(OUTPUT_LEVEL_VERBOSE, "", "No registered cfengine service, using default");
+            CfOut(OUTPUT_LEVEL_VERBOSE, "",
+                  "No registered cfengine service, using default");
         }
         else
         {
-            CfOut(OUTPUT_LEVEL_VERBOSE, "getservbyname", "Unable to query services database, using default");
+            CfOut(OUTPUT_LEVEL_VERBOSE, "getservbyname",
+                  "Unable to query services database, using default");
         }
         snprintf(STR_CFENGINEPORT, 15, "5308");
         SHORT_CFENGINEPORT = htons((unsigned short) 5308);
@@ -140,7 +142,9 @@ void DetermineCfenginePort()
         SHORT_CFENGINEPORT = server->s_port;
     }
 
-    CfOut(OUTPUT_LEVEL_VERBOSE, "", "Setting cfengine default port to %u = %s\n", ntohs(SHORT_CFENGINEPORT), STR_CFENGINEPORT);
+    CfOut(OUTPUT_LEVEL_VERBOSE, "",
+          "Setting CFEngine default port to %hu = %s\n",
+          ntohs(SHORT_CFENGINEPORT), STR_CFENGINEPORT);
 }
 
 /*********************************************************************/

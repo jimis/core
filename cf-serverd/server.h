@@ -138,6 +138,7 @@ extern int MAXTRIES;
 extern int LOGENCRYPT;
 extern int COLLECT_INTERVAL;
 extern bool SERVER_LISTEN;
+extern unsigned short SERVER_PORT_ARG;
 
 extern ServerAccess SV;
 

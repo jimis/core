@@ -115,7 +115,7 @@ time_t CFSTARTTIME;
 time_t CFINITSTARTTIME;
 char STR_CFENGINEPORT[16] = { 0 };
 
-unsigned short SHORT_CFENGINEPORT;
+unsigned short SHORT_CFENGINEPORT = 0;
 time_t CONNTIMEOUT = 30;        /* seconds */
 pid_t ALARM_PID = -1;
 int EDITFILESIZE = 10000;

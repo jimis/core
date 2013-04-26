@@ -499,8 +499,12 @@ void InitializeGA(EvalContext *ctx, GenericAgentConfig *config)
     char vbuff[CF_BUFSIZE];
     char ebuff[CF_EXPANDSIZE];
 
+    if (ntohs(SHORT_CFENGINEPORT) != 0)
+        ProgrammingError("InitializeGA: SHORT_CFENGINEPORT was already set to %hu!",
+                         ntohs(SHORT_CFENGINEPORT));
+
     SHORT_CFENGINEPORT = htons((unsigned short) 5308);
-    snprintf(STR_CFENGINEPORT, 15, "5308");
+    xstrcpy(STR_CFENGINEPORT, "5308", sizeof(STR_CFENGINEPORT));
 
     EvalContextHeapAddHard(ctx, "any");
 

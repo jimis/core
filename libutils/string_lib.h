@@ -127,4 +127,18 @@ void *MemSpan(const void *mem, char c, size_t n);
  */
 void *MemSpanInverse(const void *mem, char c, size_t n);
 
+/**
+   @brief Like strncpy() but aborts with ProgrammingError() if #dst overflows,
+          better than silently truncating with strncpy() or strlcpy().
+
+   @warning: Use it only when you are SURE the size of dst is long enough,
+          i.e. not on strings input from user!
+
+   @return Pointer to the terminating '\0' of #dst.
+
+  @example char ipaddr[INET_ADDRSTRLEN];
+           xstrcpy(ipaddr, "192.168.1.1", sizeof(ipaddr));
+*/
+char *xstrcpy(char *dst, const char *src, size_t size);
+
 #endif

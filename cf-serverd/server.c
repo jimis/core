@@ -89,6 +89,7 @@ int LOGENCRYPT = false;
 int COLLECT_INTERVAL = 0;
 int COLLECT_WINDOW = 10;
 bool SERVER_LISTEN = true;
+unsigned short SERVER_PORT_ARG = 0;
 
 ServerAccess SV;
 

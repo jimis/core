@@ -64,6 +64,7 @@ static const struct option OPTIONS[16] =
     {"no-fork", no_argument, 0, 'F'},
     {"ld-library-path", required_argument, 0, 'L'},
     {"generate-avahi-conf", no_argument, 0, 'A'},
+    {"port", required_argument, 0, 'P'},
     {NULL, 0, 0, '\0'}
 };
 
@@ -82,6 +83,7 @@ static const char *HINTS[16] =
     "Run as a foreground processes (do not fork)",
     "Set the internal value of LD_LIBRARY_PATH for child processes",
     "Generates avahi configuration file to enable policy server to be discovered in the network",
+    "Define port to listen to (overrides body server control).",
     NULL
 };
 
@@ -134,7 +136,7 @@ GenericAgentConfig *CheckOpts(int argc, char **argv)
     int c;
     GenericAgentConfig *config = GenericAgentConfigNewDefault(AGENT_TYPE_SERVER);
 
-    while ((c = getopt_long(argc, argv, "dvIKf:D:N:VSxLFMhA", OPTIONS, &optindex)) != EOF)
+    while ((c = getopt_long(argc, argv, "dvIKf:D:N:VSxLFMhAP:", OPTIONS, &optindex)) != EOF)
     {
         switch ((char) c)
         {
@@ -200,6 +202,24 @@ GenericAgentConfig *CheckOpts(int argc, char **argv)
         case 'x':
             CfOut(OUTPUT_LEVEL_ERROR, "", "Self-diagnostic functionality is retired.");
             exit(0);
+
+        case 'P':
+        {
+            errno = 0;
+            char *tail = NULL;
+            long ret = strtol(optarg, &tail, 0);
+            if (errno != 0 || *tail != '\0' || ret < 1024 || ret >= 65536)
+            {
+                CfOut(OUTPUT_LEVEL_ERROR, "",
+                      "Port number must be between 1024 and 65536!");
+                exit(EXIT_FAILURE);
+            }
+            SERVER_PORT_ARG = (unsigned short) ret;
+            /* SERVER_PORT_ARG takes priority over "port" when body server
+             * control is evaluated later on, in
+             * server_transform.c:KeepControlPromises(). */
+            break;
+        }
         case 'A':
 #ifdef HAVE_AVAHI_CLIENT_CLIENT_H
 #ifdef HAVE_AVAHI_COMMON_ADDRESS_H
