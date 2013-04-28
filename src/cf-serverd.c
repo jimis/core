@@ -760,9 +760,14 @@ void PurgeOldConnections(Item **list, time_t now)
     }
 
     Item *next;
+    int list_size = 0;
+
+    int total_time_ms = 0;
+    struct timespec it_time = BeginMeasure();
 
     for (ip = *list; ip != NULL; ip = next)
     {
+        list_size++;
         sscanf(ip->classes, "%d", &then);
 
         next = ip->next;
@@ -773,6 +778,11 @@ void PurgeOldConnections(Item **list, time_t now)
             DeleteItem(list, ip);
         }
     }
+
+    total_time_ms = EndMeasureValueMs(it_time);
+
+    CfOut(cf_verbose, "", "Scanned CONNECTIONLIST (%d entries) while ACTIVE_THREADS was %d -- took time %d ms",
+          list_size, ACTIVE_THREADS, total_time_ms);
 
     if (!ThreadUnlock(cft_count))
     {
