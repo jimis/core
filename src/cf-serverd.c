@@ -448,9 +448,8 @@ static void StartServer(GenericAgentConfig config)
             CfOut(cf_verbose, "", "CONN_STATS more than 10ms (%ld us) spent waiting for locks!!", wait_for_lock);
         }
         wait_for_lock = 0;
-        double total_time = 0;
-        struct timespec conn_time = BeginMeasure();
         struct timespec wait_time = conn_time;
+
         if (ThreadLock(cft_server_children))
         {
             active_threads_copy = ACTIVE_THREADS;
@@ -483,6 +482,9 @@ static void StartServer(GenericAgentConfig config)
         CfDebug(" -> Waiting at incoming select...\n");
 
         ret_val = select((sd + 1), &rset, NULL, NULL, &timeout);
+
+        double total_time = 0;
+        struct timespec conn_time = BeginMeasure();
 
         if (ret_val == -1)      /* Error received from call to select */
         {
