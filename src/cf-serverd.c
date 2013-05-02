@@ -588,15 +588,15 @@ static void StartServer(GenericAgentConfig config)
             SpawnConnection(sd_reply, ipaddr);
 
             accepted_connections++;
-            total_time = EndMeasureValueD(conn_time);
+            total_time = EndMeasureValueUs(conn_time);
         }
         ++loop_count;
         if (loop_count > 500)
         {
-            CfOut(cf_verbose, "", "CONN_STATS ACC-> %d, INC->%d, time->%lf", accepted_connections, incoming_connections, total_time);
+            CfOut(cf_verbose, "", "CONN_STATS ACC-> %d, INC->%d, time->%ld", accepted_connections, incoming_connections, total_time);
             loop_count = 0;
             DumpThreadMetrics();
-       }
+        }
     }
 
     CfOut(cf_cmdout, "", "Cleaning up and exiting...\n");
