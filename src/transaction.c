@@ -505,15 +505,15 @@ int ThreadUnlock(pthread_mutex_t *mutex)
 
 void DumpThreadMetrics(void)
 {
-    CfOut(cf_verbose, "", ">>> Logging lock statistics BEGIN");
-    CfOut(cf_verbose, "", "Lock\tTotalWait\tMaxWait\tTotalHeld\tMaxHeld");
+    CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD] >>> Logging lock statistics BEGIN");
+    CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD]Lock\tTotalWait\tMaxWait\tTotalHeld\tMaxHeld");
     for (int t = 0; t < 11; ++t)
     {
         ThreadLockMetrics *lockmetrics = THREADLOCKMETRICS + t;
-        CfOut(cf_verbose, "", "%d \t %ld \t %ld \t %ld \t %ld",
+        CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD]%d \t %ld \t %ld \t %ld \t %ld",
               t, lockmetrics->total_waited, lockmetrics->max_wait, lockmetrics->total_held, lockmetrics->max_held);
     }
-    CfOut(cf_verbose, "", ">>> Logging lock statistics END");
+    CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD]>>> Logging lock statistics END");
 }
 
 #endif
