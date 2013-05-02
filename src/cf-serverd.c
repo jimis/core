@@ -594,6 +594,7 @@ static void StartServer(GenericAgentConfig config)
         if (loop_count > 500)
         {
             CfOut(cf_verbose, "", "CONN_STATS ACC-> %d, INC->%d, time->%lf", accepted_connections, incoming_connections, total_time);
+            loop_count = 0;
             DumpThreadMetrics();
        }
     }
