@@ -442,6 +442,15 @@ static void StartServer(GenericAgentConfig config)
     long wait_for_lock = 0;
     int loop_count = 0;
 
+    /*
+     * Individual lock metrics
+    */
+    long time_lock_server_children = 0;
+    long time_lock_get_addr = 0;
+    long time_lock_count = 0;
+    long time_lock_tmp = 0;
+
+
     while (!EXITNOW)
     {
         int active_threads_copy = 0;
@@ -455,7 +464,10 @@ static void StartServer(GenericAgentConfig config)
         if (ThreadLock(cft_server_children))
         {
             active_threads_copy = ACTIVE_THREADS;
-            wait_for_lock += EndMeasureValueUs(wait_time);
+            time_lock_tmp = EndMeasureValueUs(wait_time);
+            wait_for_lock += time_lock_tmp;
+            time_lock_server_children += time_lock_tmp;
+
             if (ACTIVE_THREADS == 0)
             {
                 CheckFileChanges(config);
@@ -512,7 +524,11 @@ static void StartServer(GenericAgentConfig config)
             memset(ipaddr, 0, CF_MAXVARSIZE);
             wait_time = BeginMeasure();
             ThreadLock(cft_getaddr);
-            wait_for_lock += EndMeasureValueUs(wait_time);
+
+            time_lock_tmp = EndMeasureValueUs(wait_time);
+            wait_for_lock += time_lock_tmp;
+            time_lock_get_addr += time_lock_tmp;
+
             snprintf(ipaddr, CF_MAXVARSIZE - 1, "%s", sockaddr_ntop((struct sockaddr *) &cin));
             ThreadUnlock(cft_getaddr);
 
@@ -547,7 +563,9 @@ static void StartServer(GenericAgentConfig config)
                 {
                     return;
                 }
-                wait_for_lock += EndMeasureValueUs(wait_time);
+                time_lock_tmp = EndMeasureValueUs(wait_time);
+                wait_for_lock += time_lock_tmp;
+                time_lock_count += time_lock_tmp;
 
                 if (IsItemIn(CONNECTIONLIST, MapAddress(ipaddr)))
                 {
@@ -576,7 +594,9 @@ static void StartServer(GenericAgentConfig config)
             {
                 return;
             }
-            wait_for_lock += EndMeasureValueUs(wait_time);
+            time_lock_tmp = EndMeasureValueUs(wait_time);
+            wait_for_lock += time_lock_tmp;
+            time_lock_count += time_lock_tmp;
 
             PrependItem(&CONNECTIONLIST, MapAddress(ipaddr), intime);
 
@@ -590,10 +610,18 @@ static void StartServer(GenericAgentConfig config)
             accepted_connections++;
             total_time = EndMeasureValueUs(conn_time);
         }
-        ++loop_count;
-        if (loop_count > 500)
+
+        if (++loop_count > 500)
         {
-            CfOut(cf_verbose, "", "CONN_STATS ACC-> %d, INC->%d, time->%ld", accepted_connections, incoming_connections, total_time);
+            CfOut(cf_verbose, "",
+                  "CONN_STATS ACC: %d, INC: %d, cft_count: %ld, cft_getaddr: %ld, cft_server_children: %ld, total_time: %ld",
+                  accepted_connections,
+                  incoming_connections,
+                  time_lock_count,
+                  time_lock_get_addr,
+                  time_lock_server_children,
+                  total_time);
+
             loop_count = 0;
             DumpThreadMetrics();
         }
