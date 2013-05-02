@@ -622,13 +622,14 @@ static void StartServer(GenericAgentConfig config)
         if (++loop_count > 500)
         {
             CfOut(cf_verbose, "",
-                  "[CFENGINE_METRICS] CONN_STATS ACC: %d, INC: %d, cft_count: %ld, cft_getaddr: %ld, cft_server_children: %ld, total_time: %ld",
+                  "[CFENGINE_METRICS] CONN_STATS ACC: %d, INC: %d, cft_count: %ld, cft_getaddr: %ld, cft_server_children: %ld, total_time: %ld, now = %jd",
                   accepted_connections,
                   incoming_connections,
                   time_lock_count,
                   time_lock_get_addr,
                   time_lock_server_children,
-                  total_time);
+                  total_time,
+                  (intmax_t)now);
 
             loop_count = 0;
             DumpThreadMetrics();
