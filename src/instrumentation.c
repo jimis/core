@@ -127,7 +127,6 @@ long EndMeasureValueUs(struct timespec start)
     double dt = (double)(stop.tv_sec - start.tv_sec) * 1000000.0 + (double) (stop.tv_nsec - start.tv_nsec) / (double)1000.0;
     return (long)(dt);
 }
-
 /***************************************************************/
 
 static void NotePerformance(char *eventname, time_t t, double value)
