@@ -485,7 +485,7 @@ static void StartServer(GenericAgentConfig config)
 
         ret_val = select((sd + 1), &rset, NULL, NULL, &timeout);
 
-        double total_time = 0;
+        long total_time = 0;
         struct timespec conn_time = BeginMeasure();
 
         if (ret_val == -1)      /* Error received from call to select */
