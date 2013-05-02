@@ -48,7 +48,7 @@ typedef struct
 static void ThisAgentInit(void);
 static GenericAgentConfig CheckOpts(int argc, char **argv);
 static int OpenReceiverChannel(void);
-void PurgeOldConnections(Item **list, time_t now);
+long PurgeOldConnections(Item **list, time_t now);
 static void SpawnConnection(int sd_reply, char *ipaddr);
 static void CheckFileChanges(GenericAgentConfig config);
 static void *HandleConnection(ServerConnectionState *conn);
@@ -554,7 +554,9 @@ static void StartServer(GenericAgentConfig config)
                 now = 0;
             }
 
-            PurgeOldConnections(&CONNECTIONLIST, now);
+            time_lock_tmp = PurgeOldConnections(&CONNECTIONLIST, now);
+            wait_for_lock += time_lock_tmp;
+            time_lock_count += time_lock_tmp;
 
             if (!IsMatchItemIn(MULTICONNLIST, MapAddress(ipaddr)))
             {
@@ -789,8 +791,11 @@ static int OpenReceiverChannel()
 /*********************************************************************/
 /* Level 3                                                           */
 /*********************************************************************/
-
-void PurgeOldConnections(Item **list, time_t now)
+/*
+ * Temporary:
+ * returns the microseconds spent in threadlock(cft_count)
+*/
+long PurgeOldConnections(Item **list, time_t now)
    /* Some connections might not terminate properly. These should be cleaned
       every couple of hours. That should be enough to prevent spamming. */
 {
@@ -799,21 +804,23 @@ void PurgeOldConnections(Item **list, time_t now)
 
     CfDebug("Purging Old Connections...\n");
 
+    struct timespec wait_time = BeginMeasure();
     if (!ThreadLock(cft_count))
     {
-        return;
+        return 0;
     }
+    long wait_time_us = EndMeasureValueUs(wait_time);
 
     if (list == NULL)
     {
         ThreadUnlock(cft_count);
-        return;
+        return wait_time_us;
     }
 
     Item *next;
     int list_size = 0;
 
-    double total_time = 0;
+    long total_time = 0;
     struct timespec it_time = BeginMeasure();
 
     for (ip = *list; ip != NULL; ip = next)
@@ -830,17 +837,18 @@ void PurgeOldConnections(Item **list, time_t now)
         }
     }
 
-    total_time = EndMeasureValueD(it_time);
+    total_time = EndMeasureValueUs(it_time);
 
-    CfOut(cf_verbose, "", "Scanned CONNECTIONLIST (%d entries) while ACTIVE_THREADS was %d -- took time %lf [s]",
+    CfOut(cf_verbose, "", "Scanned CONNECTIONLIST: size -> %d, ACTIVE_THREADS -> %d, time_taken -> %ld [us]",
           list_size, ACTIVE_THREADS, total_time);
 
     if (!ThreadUnlock(cft_count))
     {
-        return;
+        return wait_time_us;
     }
 
     CfDebug("Done purging\n");
+    return wait_time_us;
 }
 
 /*********************************************************************/
