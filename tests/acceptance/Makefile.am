@@ -1,9 +1,14 @@
-AM_CFLAGS = $(NOVA_CFLAGS) -I$(top_srcdir)/libpromises -I$(srcdir)/../../libutils
+AM_CFLAGS = $(NOVA_CFLAGS) \
+	-I$(top_srcdir)/libcfnet \
+	-I$(top_srcdir)/libutils \
+	-I$(top_srcdir)/libpromises
 
-noinst_PROGRAMS = mock-package-manager
+noinst_PROGRAMS = mock-package-manager cf-protocol
 
 mock_package_manager_SOURCES = mock-package-manager.c
 mock_package_manager_LDADD = ../../libpromises/libpromises.la
+
+cf_protocol_LDADD = ../../libpromises/libpromises.la
 
 if HAVE_LIBXML2
 noinst_PROGRAMS += xml-c14nize
