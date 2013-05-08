@@ -308,20 +308,25 @@ int AuthenticateAgent(AgentConnection *conn, bool trust_key)
     {
         if (implicitly_trust_server == false)        /* challenge reply was correct */
         {
-            Log(LOG_LEVEL_VERBOSE, ".....................[.h.a.i.l.].................................");
-            Log(LOG_LEVEL_VERBOSE, "Strong authentication of server=%s connection confirmed", conn->this_server);
+            Log(LOG_LEVEL_VERBOSE,
+                ".....................[.h.a.i.l.].................................");
+            Log(LOG_LEVEL_VERBOSE,
+                "Strong authentication of server=%s connection confirmed",
+                conn->server);
         }
         else
         {
             if (trust_key)
             {
-                Log(LOG_LEVEL_VERBOSE, " -> Trusting server identity, promise to accept key from %s=%s", conn->this_server,
-                      conn->remoteip);
+                Log(LOG_LEVEL_VERBOSE,
+                    " -> Trusting server identity, promise to accept key from %s=%s",
+                    conn->server, conn->remoteip);
             }
             else
             {
-                Log(LOG_LEVEL_ERR, " !! Not authorized to trust the server=%s's public key (trustkey=false)",
-                      conn->this_server);
+                Log(LOG_LEVEL_ERR,
+                    " !! Not authorized to trust the server=%s's public key (trustkey=false)",
+                      conn->server);
                 RSA_free(server_pubkey);
                 return false;
             }
@@ -329,8 +334,9 @@ int AuthenticateAgent(AgentConnection *conn, bool trust_key)
     }
     else
     {
-        Log(LOG_LEVEL_ERR, "Challenge response from server %s/%s was incorrect!", conn->this_server,
-             conn->remoteip);
+        Log(LOG_LEVEL_ERR,
+            "Challenge response from server %s/%s was incorrect!",
+            conn->server, conn->remoteip);
         RSA_free(server_pubkey);
         return false;
     }
@@ -391,7 +397,8 @@ int AuthenticateAgent(AgentConnection *conn, bool trust_key)
         /* proposition S4 - conditional */
         if ((len = ReceiveTransaction(conn->sd, in, NULL)) <= 0)
         {
-            Log(LOG_LEVEL_ERR, "Protocol error in RSA authentation from IP %s", conn->this_server);
+            Log(LOG_LEVEL_ERR, "Protocol error in RSA authentation from IP %s",
+                conn->remoteip);
             return false;
         }
 
@@ -407,8 +414,8 @@ int AuthenticateAgent(AgentConnection *conn, bool trust_key)
 
         if ((len = ReceiveTransaction(conn->sd, in, NULL)) <= 0)
         {
-            Log(LOG_LEVEL_INFO, "Protocol error in RSA authentation from IP %s",
-                 conn->this_server);
+            Log(LOG_LEVEL_ERR, "Protocol error in RSA authentation from IP %s",
+                 conn->remoteip);
             RSA_free(newkey);
             return false;
         }

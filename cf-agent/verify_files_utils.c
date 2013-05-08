@@ -2379,7 +2379,8 @@ static void *CopyFileSources(EvalContext *ctx, char *destination, Attributes att
 
     DeleteCompressedArray(inode_cache);
 
-    snprintf(eventname, CF_BUFSIZE - 1, "Copy(%s:%s > %s)", conn ? conn->this_server : "localhost", source, destination);
+    snprintf(eventname, CF_BUFSIZE - 1, "Copy(%s:%s > %s)",
+             conn ? conn->server : "localhost", source, destination);
     EndMeasure(eventname, start);
 
     return NULL;

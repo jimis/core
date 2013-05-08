@@ -36,7 +36,7 @@ AgentConnection *NewAgentConn(const char *server_name)
     conn->family = AF_INET;
     conn->trust = false;
     conn->encryption_type = 'c';
-    conn->this_server = xstrdup(server_name);
+    conn->server = xstrdup(server_name);
     return conn;
 };
 
@@ -52,7 +52,7 @@ void DeleteAgentConn(AgentConnection *conn)
     }
 
     free(conn->session_key);
-    free(conn->this_server);
+    free(conn->server);
     free(conn);
 }
 

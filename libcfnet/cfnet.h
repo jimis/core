@@ -91,14 +91,13 @@ typedef struct
     int protoversion;
     int family;                 /* AF_INET or AF_INET6 */
     char username[CF_SMALLBUF];
-    /* Unused for now... */
-    /* char localip[CF_MAX_IP_LEN]; */
-    char remoteip[CF_MAX_IP_LEN];
+    /* char localip[CF_MAX_IP_LEN];*//* UNUSED for now */
+    char *server;                    /* Server hostname/IP as given by user */
+    char remoteip[CF_MAX_IP_LEN];    /* IP address of server*/
     unsigned char digest[EVP_MAX_MD_SIZE + 1];
     unsigned char *session_key;
     char encryption_type;
     short error;
-    char *this_server;
     Stat *cache; /* Cache for network connection (READDIR result) */
 } AgentConnection;
 

@@ -1011,7 +1011,7 @@ static FnCallResult FnCallReadTcp(EvalContext *ctx, FnCall *fp, Rlist *finalargs
         .portnumber = portnum,
     };
 
-    if (!ServerConnect(conn, hostnameip, fc))
+    if (!ServerConnect(conn, fc))
     {
         CfOut(OUTPUT_LEVEL_INFORM, "socket", "Couldn't open a tcp socket");
         DeleteAgentConn(conn);
@@ -1980,7 +1980,7 @@ static FnCallResult FnCallSelectServers(EvalContext *ctx, FnCall *fp, Rlist *fin
             .portnumber = portnum,
         };
 
-        if (!ServerConnect(conn, rp->item, fc))
+        if (!ServerConnect(conn, fc))
         {
             CfOut(OUTPUT_LEVEL_INFORM, "socket", "Couldn't open a tcp socket");
             DeleteAgentConn(conn);

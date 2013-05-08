@@ -42,7 +42,7 @@ int cf_remote_stat(char *file, struct stat *buf, char *stattype, bool encrypt, A
 int CompareHashNet(char *file1, char *file2, bool encrypt, AgentConnection *conn);
 int CopyRegularFileNet(char *source, char *new, off_t size, AgentConnection *conn);
 int EncryptCopyRegularFileNet(char *source, char *new, off_t size, AgentConnection *conn);
-int ServerConnect(AgentConnection *conn, const char *host, FileCopy fc);
+int ServerConnect(AgentConnection *conn, FileCopy fc);
 
 Item *RemoteDirList(const char *dirname, bool encrypt, AgentConnection *conn);
 
