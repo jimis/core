@@ -169,7 +169,10 @@ int IdentifyAgent(int sd)
 
 /*********************************************************************/
 
-int AuthenticateAgent(AgentConnection *conn, bool trust_key)
+/* If trust_server==1 then we trust *any* server and we return the key in
+ * conn->server_pubkey.  */
+int AuthenticateAgent(AgentConnection *conn,
+                      RSA *privkey, RSA *pubkey, int trust_server)
 {
     char sendbuffer[CF_EXPANDSIZE], in[CF_BUFSIZE], *out, *decrypted_cchall;
     BIGNUM *nonce_challenge, *bn = NULL;
@@ -180,10 +183,10 @@ int AuthenticateAgent(AgentConnection *conn, bool trust_key)
     char enterprise_field = 'c';
     RSA *server_pubkey = NULL;
 
-    if ((PUBKEY == NULL) || (PRIVKEY == NULL))
+    if ((privkey == NULL) || (pubkey == NULL))
     {
-        Log(LOG_LEVEL_ERR, "No public/private key pair found at %s", PublicKeyFile(GetWorkDir()));
-        return false;
+        ProgrammingError("Keys were NULL!");
+            /* PublicKeyFile(GetWorkDir())); */
     }
 
     enterprise_field = CfEnterpriseOptions();
@@ -466,8 +469,10 @@ int AuthenticateAgent(AgentConnection *conn, bool trust_key)
     {
         char buffer[EVP_MAX_MD_SIZE * 4];
         HashPubKey(server_pubkey, conn->digest, CF_DEFAULT_DIGEST);
-        Log(LOG_LEVEL_VERBOSE, " -> Public key identity of host \"%s\" is \"%s\"", conn->remoteip,
-              HashPrintSafe(CF_DEFAULT_DIGEST, conn->digest, buffer));
+        Log(LOG_LEVEL_VERBOSE, " -> Public key identity of host \"%s\" is \"%s\"",
+            conn->remoteip,HashPrintSafe(CF_DEFAULT_DIGEST, conn->digest, buffer));
+        /* TODO remove, this is a side-effect, we don't want the network
+         * library writing into files?  */
         SavePublicKey(conn->username, buffer, server_pubkey);       // FIXME: username is local
         LastSaw(conn->remoteip, conn->digest, LAST_SEEN_ROLE_CONNECT);
     }
