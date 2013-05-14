@@ -173,8 +173,7 @@ int CFD_MAXPROCESSES = 0;
 int NO_FORK = false;
 int CFD_INTERVAL = 0;
 int DENYBADCLOCKS = true;
-int TRIES = 0;
-int MAXTRIES = 5;
+unsigned long DROPPED_CONNS = 0;
 int LOGCONNS = false;
 int LOGENCRYPT = false;
 
@@ -887,8 +886,6 @@ static void DisableSendDelays(int sockfd)
 
 static void *HandleConnection(ServerConnectionState *conn)
 {
-    char output[CF_BUFSIZE];
-
 #if defined(HAVE_PTHREAD)
 # ifdef HAVE_PTHREAD_SIGMASK
     sigset_t sigmask;
@@ -915,20 +912,22 @@ static void *HandleConnection(ServerConnectionState *conn)
     if (ACTIVE_THREADS >= CFD_MAXPROCESSES)
     {
         ACTIVE_THREADS--;
+        DROPPED_CONNS++;
 
-        if (TRIES++ > MAXTRIES) /* When to say we're hung / apoptosis threshold */
+        ThreadUnlock(cft_server_children);
+
+        /* Alert every 256 dropped connections */
+        if ((DROPPED_CONNS & 0xff) == 0)
         {
-            CfOut(cf_error, "", "Server seems to be paralyzed. DOS attack? Committing apoptosis...");
-            HandleSignals(SIGTERM);
+            CfOut(cf_error, "",
+                  "Threads over limit (>=%d), total dropped connections %lu,"
+                  " consider increasing maxconnections if this keeps for long.",
+                  CFD_MAXPROCESSES, DROPPED_CONNS);
         }
 
-        if (!ThreadUnlock(cft_server_children))
-        {
-        }
-
-        CfOut(cf_error, "", "Too many threads (>=%d) -- increase server maxconnections?", CFD_MAXPROCESSES);
-        snprintf(output, CF_BUFSIZE, "BAD: Server is currently too busy -- increase maxconnections or splaytime?");
-        SendTransaction(conn->sd_reply, output, 0, CF_DONE);
+        SendTransaction(conn->sd_reply,
+                        "BAD: Server is currently too busy -- increase maxconnections or splaytime?",
+                        0, CF_DONE);
         DeleteConn(conn);
         return NULL;
     }
@@ -936,8 +935,6 @@ static void *HandleConnection(ServerConnectionState *conn)
     {
         ThreadUnlock(cft_server_children);
     }
-
-    TRIES = 0;                  /* As long as there is activity, we're not stuck */
 
     DisableSendDelays(conn->sd_reply);
 

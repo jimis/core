@@ -53,7 +53,6 @@ extern int CFD_MAXPROCESSES;
 extern int NO_FORK;
 extern int CFD_INTERVAL;
 extern int DENYBADCLOCKS;
-extern int MAXTRIES;
 extern int LOGCONNS;
 extern int LOGENCRYPT;
 extern Item *CONNECTIONLIST;
@@ -175,7 +174,6 @@ void KeepControlPromises()
     Rval retval;
 
     CFD_MAXPROCESSES = 30;
-    MAXTRIES = 5;
     CFD_INTERVAL = 0;
     DENYBADCLOCKS = true;
     CFRUNCOMMAND[0] = '\0';
@@ -232,7 +230,6 @@ void KeepControlPromises()
         if (strcmp(cp->lval, CFS_CONTROLBODY[cfs_maxconnections].lval) == 0)
         {
             CFD_MAXPROCESSES = (int) Str2Int(retval.item);
-            MAXTRIES = CFD_MAXPROCESSES / 3;
             CfOut(cf_verbose, "", "SET maxconnections = %d\n", CFD_MAXPROCESSES);
             continue;
         }
