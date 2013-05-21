@@ -91,6 +91,10 @@ static void KeepHardClasses();
 static in_addr_t GetInetAddr(char *host);
 #endif
 
+#if defined(LINUX) || defined(DARWIN)
+#define THROTTLE_SERVER_LOOP
+#endif
+
 static void StartServer(GenericAgentConfig config);
 
 char CFRUNCOMMAND[CF_BUFSIZE];
@@ -405,17 +409,47 @@ static void StartServer(GenericAgentConfig config)
     fcntl(sd, F_SETFD, FD_CLOEXEC);
 #endif
 
+#if defined(THROTTLE_SERVER_LOOP)
+    // if we can easily find out the number of cores we have, try to throttle
+    // main loop to create fewer threads when all cores are saturated
+    unsigned int corecount = sysconf( _SC_NPROCESSORS_ONLN );
+#endif
+
     while (true)
     {
+        int active_threads_copy = 0;
+        unsigned long throttle_factor = 0;
         if (ThreadLock(cft_server_children))
         {
+            active_threads_copy = ACTIVE_THREADS;
             if (ACTIVE_THREADS == 0)
             {
                 CheckFileChanges(config);
+
+#if defined(THROTTLE_SERVER_LOOP)
+                if (corecount > 0) {
+                    char *throttle_str = getenv("CFENGINE_THROTTLE_SERVER_LOOP");
+                    if (throttle_str)
+                    {
+                        throttle_factor = StringToLong(throttle_str);
+                    }
+                }
+#endif
             }
             ThreadUnlock(cft_server_children);
         }
 
+#if defined(THROTTLE_SERVER_LOOP)
+        if (throttle_factor && corecount && (active_threads_copy >= corecount))
+        {
+            // server is handling more connections than it has cores?
+            // slow down main loop slightly to prevent too many threads
+            struct timespec sleeptime;
+            sleeptime.tv_sec = 0;
+            sleeptime.tv_nsec = active_threads_copy * throttle_factor;
+            nanosleep(&sleeptime, NULL);
+        }
+#endif
         FD_ZERO(&rset);
         FD_SET(sd, &rset);
 
