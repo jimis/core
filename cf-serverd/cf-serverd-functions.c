@@ -521,6 +521,8 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
     {
         Log(LOG_LEVEL_VERBOSE, "New promises detected...");
 
+        /* TODO stop forking cf-promises, that's why we did the modularization
+         * of libpromises. */
         if (CheckPromises(config))
         {
             Log(LOG_LEVEL_INFO, "Rereading policy file '%s'", config->input_file);
@@ -596,12 +598,10 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
             *policy = GenericAgentLoadPolicy(ctx, config);
             KeepPromises(ctx, *policy, config);
             Summarize();
-
         }
         else
         {
             Log(LOG_LEVEL_INFO, "File changes contain errors -- ignoring");
-            PROMISETIME = time(NULL);
         }
     }
     else

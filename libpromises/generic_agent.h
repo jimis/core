@@ -47,6 +47,8 @@ typedef struct
     StringSet *heap_negated;
 
     bool tty_interactive; // agent is running interactively, via tty/terminal interface
+    /* Timestamp when GenericAgentLoadPolicy() last validated promises. */
+    time_t last_validation;
 
     // change to evaluation behavior from the policy itself
     bool ignore_missing_bundles;

@@ -489,8 +489,8 @@ static Reload CheckNewPromises(EvalContext *ctx, const GenericAgentConfig *confi
         }
         else
         {
-            Log(LOG_LEVEL_INFO, "New promises file contains syntax errors -- ignoring");
-            PROMISETIME = time(NULL);
+            Log(LOG_LEVEL_ERR,
+                "New promises file contains syntax errors -- ignoring");
         }
     }
     else
@@ -507,7 +507,8 @@ static bool ScheduleRun(EvalContext *ctx, Policy **policy, GenericAgentConfig *c
     sleep(CFPULSETIME);         /* 1 Minute resolution is enough */
 
     /*
-     * FIXME: this logic duplicates the one from cf-serverd.c. Unify ASAP.
+     * FIXME: this logic duplicates the one from cf-serverd.c:CheckFileChanges().
+     * Unify ASAP and move to GenericAgent.c:GenericAgentCheckPolicy().
      */
 
     if (CheckNewPromises(ctx, config, InputFiles(ctx, *policy)) == RELOAD_FULL)

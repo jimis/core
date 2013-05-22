@@ -212,6 +212,7 @@ static bool IsPolicyPrecheckNeeded(EvalContext *ctx, GenericAgentConfig *config,
         check_policy = true;
         Log(LOG_LEVEL_VERBOSE, "Input file is outside default repository, validating it");
     }
+    /* jimis TOOOOODOOOOOOOOOO */
     if (NewPromiseProposals(ctx, config, NULL))
     {
         check_policy = true;
@@ -507,8 +508,6 @@ static void ShowContext(EvalContext *ctx)
 
 Policy *GenericAgentLoadPolicy(EvalContext *ctx, GenericAgentConfig *config)
 {
-    PROMISETIME = time(NULL);
-
     Policy *main_policy = Cf3ParseFile(config, config->input_file);
 
     if (main_policy)
@@ -571,6 +570,10 @@ Policy *GenericAgentLoadPolicy(EvalContext *ctx, GenericAgentConfig *config)
     {
         VerifyPromises(ctx, main_policy, config);
     }
+
+    /* Note that policies just got validated, useful only for daemons, agents
+     * are keeping track of this with cf_promises_validated file. */
+    config->last_validation = time(NULL);
 
     return main_policy;
 }
@@ -838,42 +841,20 @@ int NewPromiseProposals(EvalContext *ctx, const GenericAgentConfig *config, cons
     struct stat sb;
     int result = false;
     char filename[CF_MAXVARSIZE];
-    time_t validated_at;
 
-    if (MINUSF)
+    /* TODO make this function useful to agents as well by implementing time
+     * comparison to cf_promises_validated timestamp file. */
+    if (config->agent_type != AGENT_TYPE_SERVER &&
+        config->agent_type != AGENT_TYPE_EXECUTOR)
     {
-        snprintf(filename, CF_MAXVARSIZE, "%s/state/validated_%s", CFWORKDIR, CanonifyName(config->original_input_file));
-        MapName(filename);
-    }
-    else
-    {
-        snprintf(filename, CF_MAXVARSIZE, "%s/masterfiles/cf_promises_validated", CFWORKDIR);
-        MapName(filename);
+        ProgrammingError("NewPromiseProposals() is only supposed to be called from daemons!");
     }
 
-    if (stat(filename, &sb) != -1)
-    {
-        validated_at = sb.st_mtime;
-    }
-    else
-    {
-        validated_at = 0;
-    }
-
-// sanity check
-
-    if (validated_at > time(NULL))
+    /* Sanity check. */
+    if (config->last_validation > time(NULL))
     {
         Log(LOG_LEVEL_INFO,
-              "!! Clock seems to have jumped back in time - mtime of %s is newer than current time - touching it",
-              filename);
-
-        if (utime(filename, NULL) == -1)
-        {
-            Log(LOG_LEVEL_ERR, "Could not touch '%s'. (utime: %s)", filename, GetErrorStr());
-        }
-
-        validated_at = 0;
+            "!! Clock seems to have jumped back in time - revalidating promises");
         return true;
     }
 
@@ -883,9 +864,9 @@ int NewPromiseProposals(EvalContext *ctx, const GenericAgentConfig *config, cons
         return true;
     }
 
-    if (sb.st_mtime > validated_at || sb.st_mtime > PROMISETIME)
+    if (sb.st_mtime > config->last_validation)
     {
-        Log(LOG_LEVEL_VERBOSE, "Promises seem to change");
+        Log(LOG_LEVEL_VERBOSE, "Promises seem to have changed");
         return true;
     }
 
@@ -894,7 +875,7 @@ int NewPromiseProposals(EvalContext *ctx, const GenericAgentConfig *config, cons
     snprintf(filename, CF_MAXVARSIZE, "%s/inputs", CFWORKDIR);
     MapName(filename);
 
-    if (IsNewerFileTree(filename, PROMISETIME))
+    if (IsNewerFileTree(filename, config->last_validation))
     {
         Log(LOG_LEVEL_VERBOSE, "Quick search detected file changes");
         return true;
@@ -923,7 +904,7 @@ int NewPromiseProposals(EvalContext *ctx, const GenericAgentConfig *config, cons
                     break;
                 }
 
-                if (sb.st_mtime > PROMISETIME)
+                if (sb.st_mtime > config->last_validation)
                 {
                     result = true;
                 }
@@ -940,7 +921,7 @@ int NewPromiseProposals(EvalContext *ctx, const GenericAgentConfig *config, cons
                         break;
                     }
 
-                    if (sb.st_mtime > PROMISETIME)
+                    if (sb.st_mtime > config->last_validation)
                     {
                         result = true;
                         break;
@@ -965,7 +946,8 @@ int NewPromiseProposals(EvalContext *ctx, const GenericAgentConfig *config, cons
     snprintf(filename, CF_MAXVARSIZE, "%s/policy_server.dat", CFWORKDIR);
     MapName(filename);
 
-    if ((stat(filename, &sb) != -1) && (sb.st_mtime > PROMISETIME))
+    if ((stat(filename, &sb) != -1) &&
+        (sb.st_mtime > config->last_validation))
     {
         result = true;
     }
@@ -1746,6 +1728,8 @@ GenericAgentConfig *GenericAgentConfigNewDefault(AgentType agent_type)
 
     // TODO: system state, perhaps pull out as param
     config->tty_interactive = isatty(0) && isatty(1);
+
+    config->last_validation = 0;
 
     config->bundlesequence = NULL;
 
