@@ -425,6 +425,7 @@ static void StartServer(GenericAgentConfig config)
     // if we can easily find out the number of cores we have, try to throttle
     // main loop to create fewer threads when all cores are saturated
     unsigned int corecount = sysconf( _SC_NPROCESSORS_ONLN );
+    unsigned long throttle_factor = 0;
 #endif
 
     CfOut(cf_cmdout, "", "Server is starting...\n");
@@ -432,7 +433,7 @@ static void StartServer(GenericAgentConfig config)
     while (!EXITNOW)
     {
         int active_threads_copy = 0;
-        unsigned long throttle_factor = 0;
+
         if (ThreadLock(cft_server_children))
         {
             active_threads_copy = ACTIVE_THREADS;
@@ -459,8 +460,8 @@ static void StartServer(GenericAgentConfig config)
             // server is handling more connections than it has cores?
             // slow down main loop slightly to prevent too many threads
             struct timespec sleeptime;
-            sleeptime.tv_sec = 0;
-            sleeptime.tv_nsec = active_threads_copy * throttle_factor;
+            sleeptime.tv_sec  = ((unsigned long long) active_threads_copy * throttle_factor / 1000000000);
+            sleeptime.tv_nsec = ((unsigned long long) active_threads_copy * throttle_factor % 1000000000);
             nanosleep(&sleeptime, NULL);
         }
 #endif
