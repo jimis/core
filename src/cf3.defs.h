@@ -1009,6 +1009,20 @@ typedef struct
 extern ThreadLockMetrics THREADLOCKMETRICS[];
 #endif
 
+/* serverd thread lifetime instrumentation, times in milliseconds */
+struct threadinstr {
+    long count;
+    long realtime_max, realtime;
+    long usertime_max, usertime;
+    long systime_max, systime;
+    long realtime_authed_max, realtime_authed;
+    long usertime_authed_max, usertime_authed;
+    long systime_authed_max, systime_authed;
+} threadinstr;
+
+extern pthread_mutex_t mtx_threadinstr;
+
+
 /************************************************************************************/
 
 typedef enum

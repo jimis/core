@@ -32,6 +32,7 @@
 #include "files_names.h"
 #include "vars.h"
 
+
 #define QUEUESIZE 128
 /* listen() backlog, on Linux it's limited by net.core.somaxconn sysctl. */
 #define CF_BUFEXT 128
@@ -44,6 +45,7 @@ typedef struct
     char *replybuff;
     char *replyfile;
 } ServerFileGetState;
+
 
 static void ThisAgentInit(void);
 static GenericAgentConfig CheckOpts(int argc, char **argv);
@@ -619,7 +621,7 @@ static void StartServer(GenericAgentConfig config)
             total_time = EndMeasureValueUs(conn_time);
         }
 
-        if (++loop_count > 500)
+        if (++loop_count > 5000)
         {
             CfOut(cf_verbose, "",
                   "[CFENGINE_METRICS] CONN_STATS ACC: %d, INC: %d, cft_count: %ld, cft_getaddr: %ld, cft_server_children: %ld, total_time: %ld, now = %jd",
@@ -1063,6 +1065,39 @@ static void DisableSendDelays(int sockfd)
 /* Level 4                                                           */
 /*********************************************************************/
 
+
+void StoreThreadStats(const ServerConnectionState *conn)
+{
+    long real = timespec_diff_ms(conn->end_time, conn->start_time);
+    long user = timeval_diff_ms(conn->end_rusage.ru_utime, (struct timeval) {0} );
+    long sys = timeval_diff_ms(conn->end_rusage.ru_stime, (struct timeval) {0} );
+
+    long authed_real = timespec_diff_ms(conn->authed_time, conn->start_time);
+    long authed_user = timeval_diff_ms(conn->authed_rusage.ru_utime, (struct timeval) {0} );
+    long authed_sys = timeval_diff_ms(conn->authed_rusage.ru_stime, (struct timeval) {0} );
+
+
+    pthread_mutex_lock(&mtx_threadinstr);
+
+    threadinstr.count++;
+
+    threadinstr.realtime += real;
+    threadinstr.usertime += user;
+    threadinstr.systime += sys;
+    threadinstr.realtime_authed += authed_real;
+    threadinstr.usertime_authed += authed_user;
+    threadinstr.systime_authed += authed_sys;
+
+    if (real > threadinstr.realtime_max) threadinstr.realtime_max = real;
+    if (user > threadinstr.usertime_max) threadinstr.usertime_max = user;
+    if (sys > threadinstr.systime_max) threadinstr.systime_max = sys;
+    if (authed_real > threadinstr.realtime_authed_max) threadinstr.realtime_authed_max = authed_real;
+    if (authed_user > threadinstr.usertime_authed_max) threadinstr.usertime_authed_max = authed_user;
+    if (authed_sys > threadinstr.systime_authed_max) threadinstr.systime_authed_max = authed_sys;
+
+    pthread_mutex_unlock(&mtx_threadinstr);
+}
+
 static void *HandleConnection(ServerConnectionState *conn)
 {
     char output[CF_BUFSIZE];
@@ -1072,6 +1107,8 @@ static void *HandleConnection(ServerConnectionState *conn)
         CfDebug("Null connection\n");
         return NULL;
     }
+
+    conn->start_time = BeginMeasure();
 
     if (!ThreadLock(cft_server_children))
     {
@@ -1135,9 +1172,15 @@ static void *HandleConnection(ServerConnectionState *conn)
     {
     }
 
+    conn->end_time = BeginMeasure();
+    getrusage(RUSAGE_THREAD, &conn->end_rusage);
+
+    StoreThreadStats(conn);
+
     DeleteConn(conn);
     return NULL;
 }
+
 
 /*********************************************************************/
 
@@ -1261,6 +1304,9 @@ static int BusyWithConnection(ServerConnectionState *conn)
             RefuseAccess(conn, sendbuffer, 0, recvbuffer);
             return false;
         }
+
+        conn->authed_time = BeginMeasure();
+        getrusage(RUSAGE_THREAD, &conn->authed_rusage);
 
         return true;
 
@@ -4012,6 +4058,7 @@ static ServerConnectionState *NewConn(int sd)
     ServerConnectionState *conn;
 
     conn = xmalloc(sizeof(ServerConnectionState));
+    memset(conn, 0, sizeof(*conn));
 
     conn->sd_reply = sd;
     conn->id_verified = false;

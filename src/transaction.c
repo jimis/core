@@ -505,15 +505,47 @@ int ThreadUnlock(pthread_mutex_t *mutex)
 
 void DumpThreadMetrics(void)
 {
-    CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD] >>> Logging lock statistics BEGIN");
-    CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD]Lock\tTotalWait\tMaxWait\tTotalHeld\tMaxHeld");
+    CfOut(cf_log, "", "[CFENGINE_METRICS_THREAD] >>> INSTRUMENTATION statistics BEGIN");
+    CfOut(cf_log, "", "[CFENGINE_METRICS_THREAD]Lock\tTotalWait\tMaxWait\tTotalHeld\tMaxHeld");
     for (int t = 0; t < 11; ++t)
     {
         ThreadLockMetrics *lockmetrics = THREADLOCKMETRICS + t;
-        CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD]%d \t %ld \t %ld \t %ld \t %ld",
+        CfOut(cf_log, "", "[CFENGINE_METRICS_THREAD]%d \t %ld \t %ld \t %ld \t %ld",
               t, lockmetrics->total_waited, lockmetrics->max_wait, lockmetrics->total_held, lockmetrics->max_held);
     }
-    CfOut(cf_verbose, "", "[CFENGINE_METRICS_THREAD]>>> Logging lock statistics END");
+
+    pthread_mutex_lock(&mtx_threadinstr);
+
+    long count = threadinstr.count;
+    long realtime_mean = threadinstr.realtime / count;
+    long usertime_mean = threadinstr.usertime / count;
+    long systime_mean = threadinstr.systime / count;
+    long realtime_authed_mean = threadinstr.realtime_authed / count;
+    long usertime_authed_mean = threadinstr.usertime_authed / count;
+    long systime_authed_mean = threadinstr.systime_authed / count;
+    long realtime_max = threadinstr.realtime_max;
+    long usertime_max = threadinstr.usertime_max;
+    long systime_max = threadinstr.systime_max;
+    long realtime_authed_max = threadinstr.realtime_authed_max;
+    long usertime_authed_max = threadinstr.usertime_authed_max;
+    long systime_authed_max = threadinstr.systime_authed_max;
+
+    /* Reset count */
+    threadinstr = (struct threadinstr) { 0 };
+
+    pthread_mutex_unlock(&mtx_threadinstr);
+
+    CfOut(cf_log, "", "[CFENGINE_METRICS] thread times mean/max milliseconds for total of %ld threads", count);
+    CfOut(cf_log, "", "[CFENGINE_METRICS] lifetime: real %ld/%ld, user %ld/%ld, system %ld/%ld",
+          realtime_mean, realtime_max,
+          usertime_mean, usertime_max,
+          systime_mean, systime_max);
+    CfOut(cf_log, "", "[CFENGINE_METRICS] authtime: real %ld/%ld, user %ld/%ld, system %ld/%ld",
+          realtime_authed_mean, realtime_authed_max,
+          usertime_authed_mean, usertime_authed_max,
+          systime_authed_mean, systime_authed_max);
+
+    CfOut(cf_log, "", "[CFENGINE_METRICS_THREAD]>>> INSTRUMENTATION statistics END");
 }
 
 #endif

@@ -626,6 +626,8 @@ int NullIterators(Rlist *iterator);
 
 /* instrumentation.c */
 
+long timespec_diff_ms(struct timespec start, struct timespec stop);
+long timeval_diff_ms(struct timeval start, struct timeval stop);
 struct timespec BeginMeasure(void);
 void EndMeasure(char *eventname, struct timespec start);
 void EndMeasurePromise(struct timespec start, Promise *pp);

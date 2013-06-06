@@ -31,6 +31,11 @@
 #ifndef CFENGINE_CF3_SERVER_H
 #define CFENGINE_CF3_SERVER_H
 
+/* struct timespec and struct rusage */
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <time.h>
+
 #define connection 1
 
 typedef struct
@@ -53,6 +58,9 @@ typedef struct
     char encryption_type;
     char ipaddr[CF_MAX_IP_LEN];
     char output[CF_BUFSIZE * 2];        /* Threadsafe output channel */
+
+    struct timespec start_time, authed_time, end_time;
+    struct rusage authed_rusage, end_rusage;
 } ServerConnectionState;
 
 /**********************************************************************/

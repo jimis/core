@@ -37,9 +37,27 @@
 
 #include <math.h>
 
+
+pthread_mutex_t mtx_threadinstr = PTHREAD_MUTEX_INITIALIZER;
+
+
 static void NotePerformance(char *eventname, time_t t, double value);
 
 /* Alter this code at your peril. Berkeley DB is very sensitive to errors. */
+
+long timespec_diff_ms(struct timespec stop, struct timespec start)
+{
+    long dt = (stop.tv_sec * 1000 + stop.tv_nsec / 1000000)
+        -  (start.tv_sec * 1000 + start.tv_nsec / 1000000);
+    return dt;
+}
+
+long timeval_diff_ms(struct timeval stop, struct timeval start)
+{
+    long dt = (stop.tv_sec * 1000 + stop.tv_usec / 1000)
+        -  (start.tv_sec * 1000 + start.tv_usec / 1000);
+    return dt;
+}
 
 /***************************************************************/
 

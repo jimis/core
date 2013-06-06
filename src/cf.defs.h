@@ -29,6 +29,11 @@
 
 #define _GNU_SOURCE 1
 
+/* TIMING INSTRUMENTATION see instrumentation.c and cf-serverd.c */
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <time.h>
+
 #ifdef NT
 # define MAX_FILENAME 227
 # define WINVER 0x501
