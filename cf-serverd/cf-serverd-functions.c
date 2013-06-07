@@ -479,6 +479,27 @@ int OpenReceiverChannel(void)
             exit(1);
         }
 
+
+        /* Windows don't listen to IPv4 transparently, they need IPV6_V6ONLY
+         * set to 0 explicitly. On Linux default is 0 and it is also controled
+         * by /proc/sys/net/ipv6/bindv6only.  Listen to both v6/v4 only if
+         * user didn't set bindtointerface in body server control (ptr ==
+         * NULL). */
+        #if defined(_WIN32) && defined(IPV6_V6ONLY)
+        if (ptr == NULL && ap->ai_family == AF_INET6)
+        {
+            int no = 0;
+            int ret = setsockopt(sd, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
+            if (ret == -1)
+            {
+                Log(LOG_LEVEL_WARN,
+                    "Socket option IPV6_V6ONLY=0 was not accepted, "
+                    "we are probably not listening to IPv4. (setsockopt: %s)",
+                    GetErrorStr());
+            }
+        }
+        #endif
+
         if (bind(sd, ap->ai_addr, ap->ai_addrlen) != -1)
         {
             if (LogGetGlobalLevel() >= LOG_LEVEL_DEBUG)
