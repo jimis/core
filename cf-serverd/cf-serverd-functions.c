@@ -556,7 +556,6 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
             SV.allowciphers = NULL;
 
             DeleteItemList(SV.trustkeylist);
-            DeleteItemList(SV.skipverify);
             DeleteItemList(SV.attackerlist);
             DeleteItemList(SV.nonattackerlist);
             DeleteItemList(SV.multiconnlist);
@@ -588,7 +587,6 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
             SV.rolestop = NULL;
 
             SV.trustkeylist = NULL;
-            SV.skipverify = NULL;
             SV.attackerlist = NULL;
             SV.nonattackerlist = NULL;
             SV.multiconnlist = NULL;

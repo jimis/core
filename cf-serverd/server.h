@@ -60,7 +60,6 @@ typedef struct
     Item *allowuserlist;                              /* "allowusers" */
     Item *multiconnlist;                              /* "allowallconnects" */
     Item *trustkeylist;                               /* "trustkeysfrom" */
-    Item *skipverify;
     char *allowciphers;
 
     Auth *admit;
@@ -92,10 +91,6 @@ struct ServerConnectionState_
     ConnectionInfo conn_info;
     int synchronized;
     int trust;
-    /* The hostname that the client chooses to identify itself, mostly
-     * obsolete since key authentication is now prevalent and the client
-     * identifies as localhost.localdomain. */
-    char hostname[CF_MAXVARSIZE];
     char username[CF_MAXVARSIZE];
 #ifdef __MINGW32__
     char sid[CF_MAXSIDSIZE];    /* we avoid dynamically allocated buffers due to potential memory leaks */
