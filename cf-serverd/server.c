@@ -1111,6 +1111,9 @@ static int VerifyConnection(ServerConnectionState *conn, char buf[CF_BUFSIZE])
    irrelevant fr authentication...
    We can save a lot of time by not looking this up ... */
 
+    /* WAT? conn->trust is always false at the CAUTH phase!!! So all
+     * authentication is now based on keys, we can throw away the rest of the
+     * code... TODO double-check and remove. */
     if ((conn->trust == false) ||
         (IsMatchItemIn(conn->ctx, SV.skipverify, MapAddress(conn->ipaddr))))
     {
@@ -1307,19 +1310,22 @@ static int AuthenticationDialogue(ServerConnectionState *conn, char *recvbuffer,
 
     if ((crypt_len == 0) || (nonce_len == 0) || (strlen(sauth) == 0))
     {
-        Log(LOG_LEVEL_INFO, "Protocol format error in authentation from IP %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol format error in authentation from IP %s", conn->ipaddr);
         return false;
     }
 
     if (nonce_len > CF_NONCELEN * 2)
     {
-        Log(LOG_LEVEL_INFO, "Protocol deviant authentication nonce from %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol deviant authentication nonce from %s", conn->ipaddr);
         return false;
     }
 
     if (crypt_len > 2 * CF_NONCELEN)
     {
-        Log(LOG_LEVEL_INFO, "Protocol abuse in unlikely cipher from %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol abuse in unlikely cipher from %s", conn->ipaddr);
         return false;
     }
 
@@ -1327,13 +1333,16 @@ static int AuthenticationDialogue(ServerConnectionState *conn, char *recvbuffer,
 
     if (recvbuffer + CF_RSA_PROTO_OFFSET + nonce_len > recvbuffer + recvlen)
     {
-        Log(LOG_LEVEL_INFO, "Protocol consistency error in authentication from %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol consistency error in authentication from %s",
+            conn->ipaddr);
         return false;
     }
 
     if ((strcmp(sauth, "SAUTH") != 0) || (nonce_len == 0) || (crypt_len == 0))
     {
-        Log(LOG_LEVEL_INFO, "Protocol error in RSA authentication from IP '%s'", conn->hostname);
+        Log(LOG_LEVEL_INFO, "Protocol error in RSA authentication from IP '%s'",
+            conn->ipaddr);
         return false;
     }
 
@@ -1380,14 +1389,16 @@ static int AuthenticationDialogue(ServerConnectionState *conn, char *recvbuffer,
 /* proposition C2 */
     if ((len_n = ReceiveTransaction(&conn->conn_info, recvbuffer, NULL)) == -1)
     {
-        Log(LOG_LEVEL_INFO, "Protocol error 1 in RSA authentation from IP %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol error 1 in RSA authentation from IP %s", conn->ipaddr);
         RSA_free(newkey);
         return false;
     }
 
     if (len_n == 0)
     {
-        Log(LOG_LEVEL_INFO, "Protocol error 2 in RSA authentation from IP %s", conn->hostname);
+        Log(LOG_LEVEL_INFO, "Protocol error 2 in RSA authentation from IP %s",
+            conn->ipaddr);
         RSA_free(newkey);
         return false;
     }
@@ -1404,14 +1415,16 @@ static int AuthenticationDialogue(ServerConnectionState *conn, char *recvbuffer,
 
     if ((len_e = ReceiveTransaction(&conn->conn_info, recvbuffer, NULL)) == -1)
     {
-        Log(LOG_LEVEL_INFO, "Protocol error 3 in RSA authentation from IP %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol error 3 in RSA authentation from IP %s", conn->ipaddr);
         RSA_free(newkey);
         return false;
     }
 
     if (len_e == 0)
     {
-        Log(LOG_LEVEL_INFO, "Protocol error 4 in RSA authentation from IP %s", conn->hostname);
+        Log(LOG_LEVEL_INFO,
+            "Protocol error 4 in RSA authentation from IP %s", conn->ipaddr);
         RSA_free(newkey);
         return false;
     }

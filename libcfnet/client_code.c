@@ -1318,6 +1318,11 @@ int ServerConnect(AgentConnection *conn, const char *host, FileCopy fc)
 
 /*********************************************************************/
 
+/* TODO its bogus we're storing strings in SERVERLIST, because in the old
+ * Hostname2IPString() we didn't actually know if resolution worked, so it
+ * could be either a hostname or an ip address. So TODO the SERVERLIST (and
+ * FileCopy?) should only keep struct sockaddr_storage and do numeric
+ * comparisons from now on... */
 static bool ServerOffline(const char *server)
 {
     char ipaddr[CF_MAX_IP_LEN];
@@ -1421,7 +1426,6 @@ static AgentConnection *GetIdleConnectionToServer(const char *server)
             }
         }
     }
-
     Log(LOG_LEVEL_VERBOSE, "GetIdleConnectionToServer:"
         " no existing connection to '%s' is established...", ipaddr);
     return NULL;
