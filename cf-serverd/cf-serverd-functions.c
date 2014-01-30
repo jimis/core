@@ -349,7 +349,7 @@ void StartServer(EvalContext *ctx, Policy **policy, GenericAgentConfig *config)
 
     WritePID("cf-serverd.pid");
     CollectCallStart(COLLECT_INTERVAL);
-    time_t last_policy_reload = 0;
+    time_t last_validated_at = 0;
 
     while (!IsPendingTermination())
     {
@@ -360,7 +360,7 @@ void StartServer(EvalContext *ctx, Policy **policy, GenericAgentConfig *config)
         {
             if (ACTIVE_THREADS == 0)
             {
-                CheckFileChanges(ctx, policy, config, &last_policy_reload);
+                CheckFileChanges(ctx, policy, config, &last_validated_at);
             }
             ThreadUnlock(cft_server_children);
         }
@@ -604,7 +604,8 @@ static void DeleteAuthList(Auth **list, Auth **list_tail)
     *list_tail = NULL;
 }
 
-void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *config, time_t *last_policy_reload)
+void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *config,
+                      time_t *last_validated_at)
 {
     time_t validated_at;
 
@@ -612,9 +613,9 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
 
     validated_at = ReadTimestampFromPolicyValidatedMasterfiles(config);
 
-    if (*last_policy_reload < validated_at)
+    if (*last_validated_at < validated_at)
     {
-        *last_policy_reload = validated_at;
+        *last_validated_at = validated_at;
 
         Log(LOG_LEVEL_VERBOSE, "New promises detected...");
 
@@ -622,7 +623,7 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
         {
             Log(LOG_LEVEL_INFO, "Rereading policy file '%s'", config->input_file);
 
-            /* Free & reload -- lock this to avoid access errors during reload */
+            /* STEP 1: Free everything */
 
             EvalContextClear(ctx);
 
@@ -660,6 +661,8 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
 
             PolicyDestroy(*policy);
             *policy = NULL;
+
+            /* STEP 2: Set Environment, Parse and Evaluate policy */
 
             {
                 char *existing_policy_server = ReadPolicyServerFile(GetWorkDir());
