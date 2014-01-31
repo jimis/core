@@ -1114,15 +1114,20 @@ time_t ReadTimestampFromPolicyValidatedMasterfiles(const GenericAgentConfig *con
     return validated_at;
 }
 
-bool GenericAgentIsPolicyReloadNeeded(const GenericAgentConfig *config, const Policy *policy)
+/**
+ * @NOTE Updates the config->agent_specific.daemon.last_validated_at timestamp
+ *       used by serverd, execd daemons when checking for new policies.
+ */
+bool GenericAgentIsPolicyReloadNeeded(GenericAgentConfig *config, const Policy *policy)
 {
     time_t validated_at = ReadTimestampFromPolicyValidatedMasterfiles(config);
+    config->agent_specific.daemon.last_validated_at = validated_at;
 
     if (validated_at > time(NULL))
     {
         Log(LOG_LEVEL_INFO,
-            "Clock seems to have jumped back in time - mtime of %lld is newer than current time - touching it",
-            (long long)validated_at);
+            "Clock seems to have jumped back in time, mtime of %jd is newer than current time, touching it",
+            (intmax_t) validated_at);
 
         WritePolicyValidatedFileToMasterfiles(config);
         return true;
