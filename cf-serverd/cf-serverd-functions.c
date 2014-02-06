@@ -638,6 +638,8 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
             DeleteItemList(SV.attackerlist);    SV.attackerlist = NULL;
             DeleteItemList(SV.nonattackerlist); SV.nonattackerlist = NULL;
             DeleteItemList(SV.multiconnlist);   SV.multiconnlist = NULL;
+            DeleteItemList(SV.allowlegacyconnects);
+            SV.allowlegacyconnects = NULL;
 
             /* New ACLs */
             acl_Free(paths_acl);    paths_acl = NULL;
