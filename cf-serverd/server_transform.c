@@ -638,7 +638,6 @@ static PromiseResult KeepServerPromise(EvalContext *ctx, const Promise *pp, ARG_
         {
             if (LEGACY_OUTPUT)
             {
-                Log(LOG_LEVEL_VERBOSE, "\n");
                 Log(LOG_LEVEL_VERBOSE, ". . . . . . . . . . . . . . . . . . . . . . . . . . . . ");
                 Log(LOG_LEVEL_VERBOSE, "Skipping whole next promise (%s), as var-context %s is not relevant", pp->promiser, cls);
                 Log(LOG_LEVEL_VERBOSE, ". . . . . . . . . . . . . . . . . . . . . . . . . . . . ");
