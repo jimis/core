@@ -75,7 +75,7 @@ static Rlist *SINGLE_COPY_CACHE = NULL; /* GLOBAL_X */
 static bool TransformFile(EvalContext *ctx, char *file, Attributes attr, const Promise *pp, PromiseResult *result);
 static PromiseResult VerifyName(EvalContext *ctx, char *path, struct stat *sb, Attributes attr, const Promise *pp);
 static PromiseResult VerifyDelete(EvalContext *ctx, char *path, struct stat *sb, Attributes attr, const Promise *pp);
-static PromiseResult VerifyCopy(EvalContext *ctx, char *source, char *destination, Attributes attr, const Promise *pp,
+static PromiseResult VerifyCopy(EvalContext *ctx, const char *source, char *destination, Attributes attr, const Promise *pp,
                                 CompressedArray **inode_cache, AgentConnection *conn);
 static PromiseResult TouchFile(EvalContext *ctx, char *path, Attributes attr, const Promise *pp);
 static PromiseResult VerifyFileAttributes(EvalContext *ctx, const char *file, struct stat *dstat, Attributes attr, const Promise *pp);
@@ -87,7 +87,7 @@ static void FileAutoDefine(EvalContext *ctx, char *destfile);
 static void TruncateFile(char *name);
 static void RegisterAHardLink(int i, char *value, Attributes attr, CompressedArray **inode_cache);
 static PromiseResult VerifyCopiedFileAttributes(EvalContext *ctx, const char *src, const char *dest, struct stat *sstat, struct stat *dstat, Attributes attr, const Promise *pp);
-static int cf_stat(char *file, struct stat *buf, FileCopy fc, AgentConnection *conn);
+static int cf_stat(const char *file, struct stat *buf, FileCopy fc, AgentConnection *conn);
 #ifndef __MINGW32__
 static int cf_readlink(EvalContext *ctx, char *sourcefile, char *linkbuf, int buffsize, Attributes attr, const Promise *pp, AgentConnection *conn, PromiseResult *result);
 #endif
@@ -664,7 +664,7 @@ static PromiseResult PurgeLocalFiles(EvalContext *ctx, Item *filelist, const cha
     return result;
 }
 
-static PromiseResult SourceSearchAndCopy(EvalContext *ctx, char *from, char *to, int maxrecurse, Attributes attr,
+static PromiseResult SourceSearchAndCopy(EvalContext *ctx, const char *from, char *to, int maxrecurse, Attributes attr,
                                          const Promise *pp, dev_t rootdevice, CompressedArray **inode_cache, AgentConnection *conn)
 {
     struct stat sb, dsb;
@@ -882,7 +882,7 @@ static PromiseResult SourceSearchAndCopy(EvalContext *ctx, char *from, char *to,
     return result;
 }
 
-static PromiseResult VerifyCopy(EvalContext *ctx, char *source, char *destination, Attributes attr, const Promise *pp,
+static PromiseResult VerifyCopy(EvalContext *ctx, const char *source, char *destination, Attributes attr, const Promise *pp,
                                 CompressedArray **inode_cache, AgentConnection *conn)
 {
     AbstractDir *dirh;
@@ -2392,7 +2392,7 @@ static PromiseResult VerifyCopiedFileAttributes(EvalContext *ctx, const char *sr
 
 static PromiseResult CopyFileSources(EvalContext *ctx, char *destination, Attributes attr, const Promise *pp, AgentConnection *conn)
 {
-    char *source = attr.copy.source;
+    const char *source = attr.copy.source;
     char vbuff[CF_BUFSIZE];
     struct stat ssb, dsb;
     struct timespec start;
@@ -2467,50 +2467,135 @@ static PromiseResult CopyFileSources(EvalContext *ctx, char *destination, Attrib
     return result;
 }
 
-PromiseResult ScheduleCopyOperation(EvalContext *ctx, char *destination, Attributes attr, const Promise *pp)
+/* Decide the protocol version the agent will use to connect: If the user has
+ * specified a copy_from rule then follow this, else use the body common
+ * control setting. */
+static ProtocolVersion DecideProtocol(const EvalContext *ctx,
+                                      ProtocolVersion copy_from_setting)
 {
+    ProtocolVersion common_setting = 0; /* TODO fetch protocol_version from common control */
+    if (copy_from_setting == CF_PROTOCOL_UNDEFINED)
+    {
+        return common_setting;
+    }
+    else
+    {
+        return copy_from_setting;
+    }
+}
+
+static AgentConnection *FileCopyConnectionOpen(const EvalContext *ctx,
+                                               const char *servername,
+                                               FileCopy fc, bool background)
+{
+    int err = 0;
+
+    ConnectionFlags flags = {
+        .protocol_version = DecideProtocol(ctx, fc.protocol_version),
+        .cache_connection = !background,
+        .force_ipv4 = fc.force_ipv4,
+        .trust_server = fc.trustkey
+    };
+
+    unsigned int conntimeout = fc.timeout;
+    if (fc.timeout == CF_NOINT || fc.timeout < 0)
+    {
+        conntimeout = CONNTIMEOUT;
+    }
+
+    const char *port = (fc.port != NULL) ? fc.port : "5308";
+
     AgentConnection *conn = NULL;
-
-    if (!attr.copy.source)
+    if (flags.cache_connection)
     {
-        Log(LOG_LEVEL_VERBOSE, "Copy file '%s' check", destination);
-    }
-    else
-    {
-        Log(LOG_LEVEL_VERBOSE, "Copy file '%s' from '%s' check", destination, attr.copy.source);
-    }
-
-    if (attr.copy.servers == NULL || strcmp(RlistScalarValue(attr.copy.servers), "localhost") == 0)
-    {
-    }
-    else
-    {
-        int err = 0;
-        conn = NewServerConnection(attr.copy, attr.transaction.background, &err, -1);
-
+        /* Get a connection from the cache. TODO fix our connection cache to account for ports. */
+        conn = GetIdleConnectionToServer(servername);
         if (conn == NULL)
         {
-            cfPS(ctx, LOG_LEVEL_INFO, PROMISE_RESULT_FAIL, pp, attr, "No suitable server responded to hail");
-            PromiseRef(LOG_LEVEL_INFO, pp);
-            return PROMISE_RESULT_FAIL;
+            conn = ServerConnection(servername, port, conntimeout,
+                                    flags, &err);
+            if (conn != NULL)
+            {
+                /* Success! Put it in the cache and leave. */
+                CacheServerConnection(conn, servername);
+            }
+        }
+    }
+    else
+    {
+        conn = ServerConnection(servername, port, conntimeout,
+                                flags, &err);
+    }
+
+    if (conn == NULL)
+    {
+        Log(LOG_LEVEL_INFO, "Unable to establish connection with %s",
+            servername);
+        if (flags.cache_connection)
+        {
+            MarkServerOffline(servername);
         }
     }
 
-    /* conn == NULL means local copy. */
+    return conn;
+}
+
+void FileCopyConnectionClose(AgentConnection *conn)
+{
+    if (conn->flags.cache_connection)
+    {
+        /* Mark the connection as available in the cache. */
+        ServerNotBusy(conn);
+    }
+    else
+    {
+        DisconnectServer(conn);
+    }
+}
+
+PromiseResult ScheduleCopyOperation(EvalContext *ctx, char *destination, Attributes attr, const Promise *pp)
+{
+    assert(attr.copy.source != NULL);
+
+    Log(LOG_LEVEL_VERBOSE, "File '%s' copy_from '%s'",
+        destination, attr.copy.source);
+
+    /* Empty attr.copy.servers means copy from localhost. */
+    bool copyfrom_localhost = (attr.copy.servers == NULL);
+    AgentConnection *conn = NULL;
+    Rlist *rp = attr.copy.servers;
+
+    /* Iterate over all copy_from servers until connection succeeds. */
+    while (rp != NULL && conn == NULL)
+    {
+        const char *servername = RlistScalarValue(rp);
+
+        if (strcmp(servername, "localhost") == 0)
+        {
+            copyfrom_localhost = true;
+            break;
+        }
+
+        conn = FileCopyConnectionOpen(ctx, servername, attr.copy,
+                                      attr.transaction.background);
+
+        rp = rp->next;
+    }
+
+    if (!copyfrom_localhost && conn == NULL)
+    {
+        cfPS(ctx, LOG_LEVEL_INFO, PROMISE_RESULT_FAIL, pp, attr,
+             "No suitable server responded to hail");
+        PromiseRef(LOG_LEVEL_INFO, pp);
+        return PROMISE_RESULT_FAIL;
+    }
+
+    /* (conn == NULL) means local copy. */
     PromiseResult result = CopyFileSources(ctx, destination, attr, pp, conn);
 
     if (conn != NULL)
     {
-        /* If it's a background connection then it's not cached in
-         * client_code.c:SERVERLIST, so just close it right after transaction. */
-        if (attr.transaction.background)
-        {
-            DisconnectServer(conn);
-        }
-        else
-        {
-            ServerNotBusy(conn);
-        }
+        FileCopyConnectionClose(conn);
     }
 
     return result;
@@ -3061,7 +3146,7 @@ static void RegisterAHardLink(int i, char *value, Attributes attr, CompressedArr
     }
 }
 
-static int cf_stat(char *file, struct stat *buf, FileCopy fc, AgentConnection *conn)
+static int cf_stat(const char *file, struct stat *buf, FileCopy fc, AgentConnection *conn)
 {
     if ((fc.servers == NULL) || (strcmp(RlistScalarValue(fc.servers), "localhost") == 0))
     {

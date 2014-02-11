@@ -1111,9 +1111,14 @@ struct PackageItem_
 /* Files                                                                 */
 /*************************************************************************/
 
+/* TODO move to cf-agent, and cfnet.h shouldn't be needed here! */
+
+#include <cfnet.h>                                       /* ProtocolVersion */
+
 typedef struct
 {
-    char *source;
+    const char *source;
+    const char *port;                               /* port or service name */
     char *destination;
     FileComparator compare;
     FileLinkType link_type;
@@ -1134,8 +1139,8 @@ typedef struct
     int encrypt;
     int verify;
     int purge;
-    unsigned short portnumber;
     short timeout;
+    ProtocolVersion protocol_version;
 } FileCopy;
 
 /*************************************************************************/
