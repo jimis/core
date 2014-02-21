@@ -32,18 +32,14 @@
 #include <tls_generic.h>              /* TLSVerifyPeer */
 #include <dir.h>
 #include <unix.h>
-#include <dir_priv.h>
+#include <dir_priv.h>                          /* AllocateDirentForFilename */
 #include <client_protocol.h>
-#include <crypto.h>
+#include <crypto.h>         /* CryptoInitialize,SavePublicKey,EncryptString */
 #include <logging.h>
-#include <files_hashes.h>
-#include <files_copy.h>
-#include <mutex.h>
-#include <rlist.h>
-#include <policy.h>
-#include <item_lib.h>
-#include <files_lib.h>
-#include <string_lib.h>
+#include <files_hashes.h>                                       /* HashFile */
+#include <mutex.h>                                            /* ThreadLock */
+#include <files_lib.h>                               /* FullWrite,safe_open */
+#include <string_lib.h>                           /* MemSpan,MemSpanInverse */
 #include <misc_lib.h>                                   /* ProgrammingError */
 
 #include <lastseen.h>                                           /* LastSaw */
@@ -71,10 +67,6 @@ static void NewClientCache(Stat *data, AgentConnection *conn);
 static void FlushFileStream(int sd, int toget);
 static int CacheStat(const char *file, struct stat *statbuf, const char *stattype, AgentConnection *conn);
 int TryConnect(AgentConnection *conn, struct timeval *tvp, struct sockaddr *cinp, int cinpSz);
-
-
-/* TODO command line / body common control policy option */ /* GLOBAL_P */
-ProtocolVersion SELECTED_PROTOCOL = CF_PROTOCOL_CLASSIC;
 
 
 /**
@@ -178,66 +170,6 @@ void DetermineCfenginePort()
   @param s Socket to use for the connection, only useful for call collect mode.
   */
 
-/* TODO deprecate, move background flag to ServerConnection. */
-/* TODO change Rlist to what? */
-/* AgentConnection *ConnectToServers(Rlist *servers, const char *port, */
-/*                                   unsigned int connect_timeout, */
-/*                                   uint64_t flags, int *err) */
-/* { */
-/*     AgentConnection *conn = NULL; */
-
-/*     for (Rlist *rp = servers; rp != NULL; rp = rp->next) */
-/*     { */
-/*         const char *servername = RlistScalarValue(rp); */
-
-/*         if (ServerOffline(servername)) */
-/*         { */
-/*             continue; */
-/*         } */
-
-/*         if (!flags.cache_connection) */
-/*         { */
-/*             ThreadLock(&cft_serverlist); */
-/*             Seq *srvlist_tmp = GetGlobalServerList(); */
-/*             ThreadUnlock(&cft_serverlist); */
-
-/*             /\* TODO not return NULL if >= CFA_MAXTREADS ? *\/ */
-/*             if (SeqLength(srvlist_tmp) < CFA_MAXTHREADS) */
-/*             { */
-/*                 /\* If background connection was requested, then don't cache it */
-/*                  * in SERVERLIST since it will be closed right afterwards. *\/ */
-/*                 conn = ServerConnection(servername, protover, fc, err); */
-/*                 return conn; */
-/*             } */
-/*         } */
-/*         else */
-/*         { */
-/*             conn = GetIdleConnectionToServer(servername); */
-/*             if (conn != NULL) */
-/*             { */
-/*                 *err = 0; */
-/*                 return conn; */
-/*             } */
-
-/*             /\* This is first usage, need to open *\/ */
-/*             conn = ServerConnection(servername, protover, fc, err); */
-/*             if (conn != NULL) */
-/*             { */
-/*                 CacheServerConnection(conn, servername); */
-/*                 return conn; */
-/*             } */
-
-/*             /\* This server failed, trying next in list. *\/ */
-/*             Log(LOG_LEVEL_INFO, "Unable to establish connection with %s", */
-/*                 servername); */
-/*             MarkServerOffline(servername); */
-/*         } */
-/*     } */
-
-/*     Log(LOG_LEVEL_ERR, "Unable to establish any connection with server."); */
-/*     return NULL; */
-/* } */
-
 /**
  * @return 1 success, 0 auth/ID error, -1 other error
  */
@@ -252,9 +184,7 @@ int TLSConnect(ConnectionInfo *conn_info, bool trust_server,
         return -1;
     }
 
-    /* TODO fix, we identify hub user with our own username, because
-     * we store key filenames as "user-key.pub" and we need a
-     * username. We might as well hard-code root... */
+    /* TODO filename is local, fix. */
     ret = TLSVerifyPeer(conn_info, ipaddr, username);
 
     if (ret == -1)                                      /* error */
@@ -321,8 +251,6 @@ int TLSConnect(ConnectionInfo *conn_info, bool trust_server,
 
 /* TODO new function SocketConnect(), and change the evalfunction.c users to
  * posix connect() or the new one. */
-
-
 static bool OpenSocket(AgentConnection *conn,
                        const char *host, const char *port,
                        unsigned int connect_timeout,
@@ -534,7 +462,7 @@ AgentConnection *ServerConnection(const char *server, const char *port,
 
     default:
         ProgrammingError("ServerConnection: ProtocolVersion %d!",
-                         SELECTED_PROTOCOL);
+                         flags.protocol_version);
     }
 
     conn->authenticated = true;
@@ -628,7 +556,7 @@ int cf_remote_stat(const char *file, struct stat *buf, char *stattype, bool encr
 
     if (ReceiveTransaction(conn->conn_info, recvbuffer, NULL) == -1)
     {
-        /* TODO mark connection as closed, or better remove from cache */
+        /* TODO mark connection in the cache as closed. */
         return -1;
     }
 
@@ -696,7 +624,7 @@ int cf_remote_stat(const char *file, struct stat *buf, char *stattype, bool encr
 
         if (ReceiveTransaction(conn->conn_info, recvbuffer, NULL) == -1)
         {
-            /* TODO mark connection as closed, or better remove from cache */
+            /* TODO mark connection in the cache as closed. */
             return -1;
         }
 
@@ -824,7 +752,7 @@ Item *RemoteDirList(const char *dirname, bool encrypt, AgentConnection *conn)
     {
         if ((n = ReceiveTransaction(conn->conn_info, recvbuffer, NULL)) == -1)
         {
-            /* TODO mark connection as closed, or better remove from cache */
+            /* TODO mark connection in the cache as closed. */
             return NULL;
         }
 
@@ -959,7 +887,7 @@ int CompareHashNet(const char *file1, const char *file2, bool encrypt, AgentConn
 
     if (ReceiveTransaction(conn->conn_info, recvbuffer, NULL) == -1)
     {
-        /* TODO mark connection as closed, or better remove from cache */
+        /* TODO mark connection in the cache as closed. */
         Log(LOG_LEVEL_ERR, "Failed receive. (ReceiveTransaction: %s)", GetErrorStr());
         Log(LOG_LEVEL_VERBOSE,  "No answer from host, assuming checksum ok to avoid remote copy for now...");
         return false;
