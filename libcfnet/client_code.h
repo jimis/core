@@ -27,11 +27,10 @@
 
 
 #include <platform.h>
+#include <item_lib.h>
+
 #include <communication.h>
 
-/* TODO: Remove dependency on libpromises */
-#include <attributes.h>
-#include <item_lib.h>
 
 bool cfnet_init(void);
 void DetermineCfenginePort(void);
@@ -41,10 +40,6 @@ void DetermineCfenginePort(void);
 AgentConnection *ServerConnection(const char *server, const char *port,
                                   unsigned int connect_timeout,
                                   ConnectionFlags flags, int *err);
-/* AgentConnection *NewServerConnection(const char *server, const char *port, */
-/*                                      unsigned int connect_timeout, */
-/*                                      uint64_t flags, int *err); */
-/* int ServerConnect(AgentConnection *conn, const char *host, FileCopy fc); */
 void DisconnectServer(AgentConnection *conn);
 int cf_remote_stat(const char *file, struct stat *buf, char *stattype, bool encrypt, AgentConnection *conn);
 int CompareHashNet(const char *file1, const char *file2, bool encrypt, AgentConnection *conn);

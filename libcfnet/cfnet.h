@@ -29,20 +29,15 @@
 
 #include <platform.h>
 
-/* ************************************************ */
-/* The following were copied from cf3.defs.h and still exist there, TODO */
 
 /* max size of plaintext in one transaction, see
    net.c:SendTransaction(), leave space for encryption padding
-   (assuming max 64*8 = 512-bit cipher block size)*/
+   (assuming max 64*8 = 512-bit cipher block size). */
 #define CF_BUFSIZE 4096
 #define CF_SMALLBUF 128
-#define CF_MAX_IP_LEN 64        /* numerical ip length */
+#define CF_MAX_IP_LEN 64                    /* max IPv4/IPv6 address length */
 #define CF_DONE 't'
 #define CF_MORE 'm'
-/* ************************************************ */
-
-
 #define SOCKET_INVALID -1
 #define MAXIP4CHARLEN 16
 #define CF_RSA_PROTO_OFFSET 24
