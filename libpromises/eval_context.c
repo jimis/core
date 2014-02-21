@@ -1890,7 +1890,7 @@ VariableTableIterator *EvalContextVariableTableIteratorNew(const EvalContext *ct
 
 const void *EvalContextVariableControlCommonGet(const EvalContext *ctx, CommonControl lval)
 {
-    if (lval == COMMON_CONTROL_NONE)
+    if (lval >= COMMON_CONTROL_MAX)
     {
         return false;
     }

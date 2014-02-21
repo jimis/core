@@ -483,7 +483,8 @@ typedef enum
     COMMON_CONTROL_SYSLOG_PORT,
     COMMON_CONTROL_FIPS_MODE,
     COMMON_CONTROL_CACHE_SYSTEM_FUNCTIONS,
-    COMMON_CONTROL_NONE
+    COMMON_CONTROL_PROTOCOL_VERSION,
+    COMMON_CONTROL_MAX
 } CommonControl;
 
 /*************************************************************************/
