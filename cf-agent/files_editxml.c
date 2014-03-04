@@ -202,7 +202,7 @@ int ScheduleEditXmlOperations(EvalContext *ctx, const Bundle *bp, Attributes a, 
 
 static PromiseResult KeepEditXmlPromise(EvalContext *ctx, const Promise *pp, void *param)
 {
-    EditContext *edcontext = param;
+    ARG_UNUSED EditContext *edcontext = param;
 
     char *sp = NULL;
 
