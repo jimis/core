@@ -2461,26 +2461,34 @@ static PromiseResult CopyFileSources(EvalContext *ctx, char *destination, Attrib
 
     DeleteCompressedArray(inode_cache);
 
-    snprintf(eventname, CF_BUFSIZE - 1, "Copy(%s:%s > %s)", conn ? conn->this_server : "localhost", source, destination);
+    snprintf(eventname, CF_BUFSIZE - 1, "Copy(%s:%s > %s)",
+             conn ? conn->this_server : "localhost", source, destination);
+
     EndMeasure(eventname, start);
 
     return result;
 }
 
 /* Decide the protocol version the agent will use to connect: If the user has
- * specified a copy_from rule then follow this, else use the body common
- * control setting. */
+ * specified a copy_from attribute then follow that one, else use the body
+ * common control setting. */
 static ProtocolVersion DecideProtocol(const EvalContext *ctx,
-                                      ProtocolVersion copy_from_setting)
+                                      ProtocolVersion copyfrom_setting)
 {
-    ProtocolVersion common_setting = 0; /* TODO fetch protocol_version from common control */
-    if (copy_from_setting == CF_PROTOCOL_UNDEFINED)
+    /* TODO we would like to get the common control setting from
+     * GenericAgentConfig. Given that we have only access to EvalContext here,
+     * we get the raw string and reparse it every time. */
+    const char *s =
+        EvalContextVariableControlCommonGet(ctx, COMMON_CONTROL_PROTOCOL_VERSION);
+    ProtocolVersion common_setting = ParseProtocolVersion(s);
+
+    if (copyfrom_setting == CF_PROTOCOL_UNDEFINED)
     {
         return common_setting;
     }
     else
     {
-        return copy_from_setting;
+        return copyfrom_setting;
     }
 }
 
@@ -2488,8 +2496,6 @@ static AgentConnection *FileCopyConnectionOpen(const EvalContext *ctx,
                                                const char *servername,
                                                FileCopy fc, bool background)
 {
-    int err = 0;
-
     ConnectionFlags flags = {
         .protocol_version = DecideProtocol(ctx, fc.protocol_version),
         .cache_connection = !background,
@@ -2512,6 +2518,7 @@ static AgentConnection *FileCopyConnectionOpen(const EvalContext *ctx,
         conn = GetIdleConnectionToServer(servername);
         if (conn == NULL)
         {
+            int err = 0;
             conn = ServerConnection(servername, port, conntimeout,
                                     flags, &err);
             if (conn != NULL)
@@ -2523,6 +2530,7 @@ static AgentConnection *FileCopyConnectionOpen(const EvalContext *ctx,
     }
     else
     {
+        int err = 0;
         conn = ServerConnection(servername, port, conntimeout,
                                 flags, &err);
     }
@@ -2555,7 +2563,16 @@ void FileCopyConnectionClose(AgentConnection *conn)
 
 PromiseResult ScheduleCopyOperation(EvalContext *ctx, char *destination, Attributes attr, const Promise *pp)
 {
-    assert(attr.copy.source != NULL);
+    /* TODO currently parser allows body copy_from to have no source!
+       See tests/acceptance/10_files/02_maintain/017.cf and
+       https://cfengine.com/bugtracker/view.php?id=687 */
+    /* assert(attr.copy.source != NULL); */
+    if (attr.copy.source == NULL)
+    {
+        Log(LOG_LEVEL_INFO,
+            "Body copy_from has no source! Maybe a typo in the policy?");
+        return PROMISE_RESULT_FAIL;
+    }
 
     Log(LOG_LEVEL_VERBOSE, "File '%s' copy_from '%s'",
         destination, attr.copy.source);

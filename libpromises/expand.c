@@ -1040,6 +1040,31 @@ void BundleResolve(EvalContext *ctx, const Bundle *bundle)
     }
 }
 
+ProtocolVersion ParseProtocolVersion(const char *s)
+{
+    if (s == NULL ||
+        strcmp(s, "0") == 0 ||
+        strcmp(s, "undefined") == 0)
+    {
+        return CF_PROTOCOL_UNDEFINED;
+    }
+    if (strcmp(s, "1") == 0 ||
+        strcmp(s, "classic") == 0)
+    {
+        return CF_PROTOCOL_CLASSIC;
+    }
+    else if (strcmp(s, "2") == 0 ||
+             strcmp(s, "latest") == 0)
+    {
+        return CF_PROTOCOL_TLS;
+    }
+    else
+    {
+        return CF_PROTOCOL_UNDEFINED;
+    }
+}
+
+
 static void ResolveControlBody(EvalContext *ctx, GenericAgentConfig *config,
                                const Body *control_body)
 {
@@ -1133,6 +1158,13 @@ static void ResolveControlBody(EvalContext *ctx, GenericAgentConfig *config,
             bool cache_system_functions = BooleanFromString(RvalScalarValue(cp->rval));
             EvalContextSetEvalOption(ctx, EVAL_OPTION_CACHE_SYSTEM_FUNCTIONS,
                                      cache_system_functions);
+        }
+
+        if (strcmp(cp->lval, CFG_CONTROLBODY[COMMON_CONTROL_PROTOCOL_VERSION].lval) == 0)
+        {
+            config->protocol_version = ParseProtocolVersion(RvalScalarValue(cp->rval));
+            Log(LOG_LEVEL_VERBOSE, "SET common protocol_version: %s",
+                PROTOCOL_VERSION_STRING[config->protocol_version]);
         }
 
         if (strcmp(cp->lval, CFG_CONTROLBODY[COMMON_CONTROL_GOALPATTERNS].lval) == 0)

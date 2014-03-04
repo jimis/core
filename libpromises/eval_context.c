@@ -1892,7 +1892,7 @@ const void *EvalContextVariableControlCommonGet(const EvalContext *ctx, CommonCo
 {
     if (lval >= COMMON_CONTROL_MAX)
     {
-        return false;
+        return NULL;
     }
 
     VarRef *ref = VarRefParseFromScope(CFG_CONTROLBODY[lval].lval, "control_common");

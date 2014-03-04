@@ -273,7 +273,7 @@ static bool OpenSocket(AgentConnection *conn,
     if ((err = getaddrinfo(host, port, &query, &response)) != 0)
     {
         Log(LOG_LEVEL_INFO,
-              "Unable to find host or service: (%s/%s): %s",
+              "Unable to find host or service %s : %s (%s)",
               host, port, gai_strerror(err));
         return false;
     }
@@ -366,6 +366,10 @@ static bool OpenSocket(AgentConnection *conn,
     return true;
 }
 
+/**
+ * @NOTE if #flags.protocol_version is CF_PROTOCOL_UNDEFINED, then latest
+ *       protocol is used by default.
+ */
 AgentConnection *ServerConnection(const char *server, const char *port,
                                   unsigned int connect_timeout,
                                   ConnectionFlags flags, int *err)
@@ -373,6 +377,9 @@ AgentConnection *ServerConnection(const char *server, const char *port,
     AgentConnection *conn = NULL;
     int ret;
     *err = 0;
+
+    conn = NewAgentConn(server);
+    conn->flags = flags;
 
 #if !defined(__MINGW32__)
     signal(SIGPIPE, SIG_IGN);
@@ -388,9 +395,6 @@ AgentConnection *ServerConnection(const char *server, const char *port,
     /* Always say "root" as username from windows. */
     snprintf(conn->username, CF_SMALLBUF, "root");
 #endif
-
-    conn = NewAgentConn(server);
-    conn->flags = flags;
 
     if (!OpenSocket(conn, server, port, connect_timeout, flags))
     {
@@ -410,6 +414,7 @@ AgentConnection *ServerConnection(const char *server, const char *port,
 
     switch (flags.protocol_version)
     {
+    case CF_PROTOCOL_UNDEFINED:
     case CF_PROTOCOL_TLS:
 
         ret = TLSConnect(conn->conn_info, flags.trust_server,

@@ -54,9 +54,15 @@
 typedef enum
 {
     CF_PROTOCOL_UNDEFINED = 0,
-    CF_PROTOCOL_CLASSIC,
-    CF_PROTOCOL_TLS
+    CF_PROTOCOL_CLASSIC = 1,
+    CF_PROTOCOL_TLS = 2                      /* Default for new connections */
 } ProtocolVersion;
+
+static const char * const PROTOCOL_VERSION_STRING[CF_PROTOCOL_TLS + 1] = {
+    "undefined",
+    "classic",
+    "latest"
+};
 
 typedef struct
 {
