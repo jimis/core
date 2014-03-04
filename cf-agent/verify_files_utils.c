@@ -2480,7 +2480,7 @@ static ProtocolVersion DecideProtocol(const EvalContext *ctx,
      * we get the raw string and reparse it every time. */
     const char *s =
         EvalContextVariableControlCommonGet(ctx, COMMON_CONTROL_PROTOCOL_VERSION);
-    ProtocolVersion common_setting = ParseProtocolVersion(s);
+    ProtocolVersion common_setting = ProtocolVersionParse(s);
 
     if (copyfrom_setting == CF_PROTOCOL_UNDEFINED)
     {

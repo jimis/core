@@ -71,6 +71,6 @@ void GetNaked(char *s1, const char *s2);
   */
 bool IsVarList(const char *var);
 
-ProtocolVersion ParseProtocolVersion(const char *s);
+ProtocolVersion ProtocolVersionParse(const char *s);
 
 #endif

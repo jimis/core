@@ -1040,7 +1040,7 @@ void BundleResolve(EvalContext *ctx, const Bundle *bundle)
     }
 }
 
-ProtocolVersion ParseProtocolVersion(const char *s)
+ProtocolVersion ProtocolVersionParse(const char *s)
 {
     if (s == NULL ||
         strcmp(s, "0") == 0 ||
@@ -1162,7 +1162,7 @@ static void ResolveControlBody(EvalContext *ctx, GenericAgentConfig *config,
 
         if (strcmp(cp->lval, CFG_CONTROLBODY[COMMON_CONTROL_PROTOCOL_VERSION].lval) == 0)
         {
-            config->protocol_version = ParseProtocolVersion(RvalScalarValue(cp->rval));
+            config->protocol_version = ProtocolVersionParse(RvalScalarValue(cp->rval));
             Log(LOG_LEVEL_VERBOSE, "SET common protocol_version: %s",
                 PROTOCOL_VERSION_STRING[config->protocol_version]);
         }
