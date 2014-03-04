@@ -160,12 +160,8 @@ void TLSDeInitialize()
 }
 
 
-/* The only protocol_version we support inside TLS, for now... */
-#define CFNET_PROTOCOL_VERSION 2
-
-
 /**
- * @return > 0: a mutually acceptable version was negotiated
+ * @return > 0: return value is a mutually acceptable version that was negotiated
  *           0: no agreement on version was reached
  *          -1: error
  */
@@ -181,7 +177,7 @@ int TLSClientNegotiateProtocol(const ConnectionInfo *conn_info)
     char version_string[128];
     int len = snprintf(version_string, sizeof(version_string),
                        "CFE_v%d %s %s\n",
-                       CFNET_PROTOCOL_VERSION, "cf-agent", VERSION);
+                       conn_info->type, "cf-agent", VERSION);
 
     ret = TLSSend(ConnectionInfoSSL(conn_info), version_string, len);
     if (ret != len)
@@ -193,7 +189,10 @@ int TLSClientNegotiateProtocol(const ConnectionInfo *conn_info)
     /* Receive OK */
     ret = TLSRecvLine(ConnectionInfoSSL(conn_info), input, sizeof(input));
     if (ret > 1 && strncmp(input, "OK", 2) == 0)
-        return 1;
+    {
+        return conn_info->type;
+    }
+
     return 0;
 }
 
