@@ -420,7 +420,7 @@ int SetReceiveTimeout(int fd, unsigned long ms)
 {
     assert(ms > 0);
 
-    Log(LOG_LEVEL_VERBOSE, "Setting socket timeout to %lu milliseconds.", ms);
+    Log(LOG_LEVEL_DEBUG, "Setting socket timeout to %lu milliseconds.", ms);
 
 /* On windows SO_RCVTIMEO is set by a DWORD indicating the timeout in
  * milliseconds, on UNIX it's a struct timeval. */
