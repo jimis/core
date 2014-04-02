@@ -625,7 +625,8 @@ void CheckFileChanges(EvalContext *ctx, Policy **policy, GenericAgentConfig *con
 
         if (GenericAgentArePromisesValid(config))
         {
-            Log(LOG_LEVEL_INFO, "Rereading policy file '%s'", config->input_file);
+            Log(LOG_LEVEL_NOTICE, "Rereading policy file '%s'",
+                config->input_file);
 
             /* STEP 1: Free everything */
 
