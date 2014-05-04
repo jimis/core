@@ -387,17 +387,16 @@ void StartServer(EvalContext *ctx, Policy **policy, GenericAgentConfig *config)
         int select_ret = select(MAX(sd, signal_pipe) + 1,
                                 &rset, NULL, NULL, &timeout);
 
-        if (select_ret == -1)
+        if (select_ret == -1 && errno != EINTR)
         {
-            if (errno != EINTR)
-            {
-                Log(LOG_LEVEL_ERR,
-                    "Error while waiting for connections. (select: %s)",
-                    GetErrorStr());
-                error = true;                                   /* quit */
-            }
+            Log(LOG_LEVEL_ERR,
+                "Error while waiting for connections. (select: %s)",
+                GetErrorStr());
+            error = true;                                       /* quit */
         }
-        else                                          /* timeout or success */
+        /* Timeout (select_ret == 0) OR success (select_ret > 0) OR
+           interrupted by signal (errno == EINTR). */
+        else
         {
             /* Empty the signal pipe, it is there to only detect missed signals
              * in-between while(!IsPendingTermination()) and select(). */
