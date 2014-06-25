@@ -365,11 +365,17 @@ void parse_args(int argc, char *argv[],
     {
         printf("\
 Usage:\n\
-	%s LASTSAW_NUM_THREADS [KEYCOUNT_NUM_THREADS [SCAN_NUM_THREADS]]\n\
+	%s [options] LASTSAW_NUM_THREADS [KEYCOUNT_NUM_THREADS [SCAN_NUM_THREADS]]\n\
 \n\
-This program creates a parent process stressing lastseen. After several seconds\n\
-creating the threads you defined, it also spawns a separate process doing things\n\
-to the same database.\n\n",
+This program creates many threads and optionally many processes stressing\n\
+lastseen database.\n\
+\n\
+Options:\n\
+	-d N:	Each round of testing shall last N seconds (default is 10s)\n\
+	-c N:	After finishing all rounds with threads, N spawned children\n\
+		processes shall apply a mixed workload to the database each one\n\
+		for another round (default is 0)\n\
+\n",
                basename(argv[0]));
 
         exit(EXIT_FAILURE);
