@@ -6,7 +6,7 @@
 
 void tests_setup(void)
 {
-    snprintf(CFWORKDIR, CF_BUFSIZE, "/tmp/CFENGINE_eval_context_test.XXXXXX");
+    xsnprintf(CFWORKDIR, CF_BUFSIZE, "/tmp/CFENGINE_eval_context_test.XXXXXX");
     mkdtemp(CFWORKDIR);
 
     char *s;
