@@ -22,8 +22,12 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
+
 #include <log.h>
-#include <alloc-mini.h>
+#include <alloc.h>
+#include <misc_lib.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,8 +57,9 @@ static char *prepare_message(char *format, va_list args)
     message_size = vsnprintf(buffer, MAX_LOG_ENTRY_SIZE - 1, format, args);
     strftime(timestamp, timestamp_size, "%Y/%m/%d %H:%M:%S", now_tm);
     /* '[' + ']' + ' ' + '\0' */
-    message = xmalloc(message_size + timestamp_size + 4);
-    sprintf(message, "[%s] %s", timestamp, buffer);
+    message_size += timestamp_size + 4;
+    message = xmalloc(message_size);
+    xsnprintf(message, message_size, "[%s] %s", timestamp, buffer);
     return message;
 }
 

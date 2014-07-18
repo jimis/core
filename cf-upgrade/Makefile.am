@@ -4,10 +4,9 @@ LIBS=				 # This tool should not link to anything
 AM_LDFLAGS=
 AM_CPPFLAGS=
 
-LDADD=../libcompat/libcompat.la
+LDADD=../libutils/libutils.la
 
 cf_upgrade_SOURCES = \
-    alloc-mini.c alloc-mini.h \
     command_line.c command_line.h \
     configuration.c configuration.h \
     log.c log.h \

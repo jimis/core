@@ -24,7 +24,9 @@
 
 #include <platform.h>
 
-#include <alloc-mini.h>
+#include <misc_lib.h>                                          /* xsnprintf */
+
+#include <alloc.h>
 #include <process.h>
 #include <log.h>
 #include <sys/types.h>
@@ -87,7 +89,7 @@ int private_run_process_wait(const char *command, char **args, char **envp)
                                strlen("-YYYYMMDD-HHMMSS") +
                                strlen(".log") + 1);
     char *filenamelog = xmalloc(filenamelog_size);
-    snprintf(filenamelog, filenamelog_size,
+    xsnprintf(filenamelog, filenamelog_size,
               "%s-%04d%02d%02d-%02d%02d%02d.log", filename,
               now_tm->tm_year + 1900, now_tm->tm_mon, now_tm->tm_mday,
               now_tm->tm_hour, now_tm->tm_min, now_tm->tm_sec);

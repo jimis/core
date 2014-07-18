@@ -31,7 +31,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <update.h>
-#include <alloc-mini.h>
+#include <alloc.h>
 #include <command_line.h>
 #include <configuration.h>
 #include <log.h>

@@ -24,7 +24,7 @@
 
 #include <configuration.h>
 #include <stdlib.h>
-#include <alloc-mini.h>
+#include <alloc.h>
 #include <log.h>
 #include <string.h>
 

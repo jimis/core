@@ -26,7 +26,7 @@
 #include <process.h>
 #include <command_line.h>
 #include <log.h>
-#include <alloc-mini.h>
+#include <alloc.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdio.h>

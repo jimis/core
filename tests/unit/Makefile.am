@@ -374,9 +374,12 @@ libcompat_test_CPPFLAGS = -I$(top_srcdir)/libcompat
 libcompat_test_SOURCES = libcompat_test.c
 
 CFUPGRADE=../../cf-upgrade
-cf_upgrade_test_SOURCES = cf_upgrade_test.c $(CFUPGRADE)/alloc-mini.c $(CFUPGRADE)/alloc-mini.h $(CFUPGRADE)/command_line.c \
-$(CFUPGRADE)/command_line.h $(CFUPGRADE)/configuration.c $(CFUPGRADE)/configuration.h $(CFUPGRADE)/log.c $(CFUPGRADE)/log.h \
-$(CFUPGRADE)/process.c $(CFUPGRADE)/process.h $(CFUPGRADE)/update.c $(CFUPGRADE)/update.h
-cf_upgrade_test_CFLAGS = -I$(CFUPGRADE)
+cf_upgrade_test_SOURCES = cf_upgrade_test.c \
+	$(CFUPGRADE)/command_line.c $(CFUPGRADE)/command_line.h \
+	$(CFUPGRADE)/configuration.c $(CFUPGRADE)/configuration.h \
+	$(CFUPGRADE)/log.c $(CFUPGRADE)/log.h \
+	$(CFUPGRADE)/process.c $(CFUPGRADE)/process.h \
+	$(CFUPGRADE)/update.c $(CFUPGRADE)/update.h
+cf_upgrade_test_CPPFLAGS = -I$(CFUPGRADE)
 
 queue_test_SOURCES = queue_test.c
