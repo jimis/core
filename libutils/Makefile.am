@@ -23,6 +23,16 @@
 #
 noinst_LTLIBRARIES = libutils.la
 
+# TODO configure.ac: test if compiler supports PCH, if so CFLAGS+=-Winvalid-pch
+
+# TODO BUILD ALWAYS IN ADVANCE
+# TODO CIRCULAR DEP: platform.h.gch <- platform.h
+platform.h.gch: platform.h Makefile
+	$(AM_V_CC)$(LTCOMPILE) platform.h -o platform.h.gch.o
+	mv .libs/platform.h.gch.o $(srcdir)/platform.h.gch
+
+#EXTRA_libutils_la_DEPENDENCIES = platform.h.gch
+
 # TODO remove the openssl dependency! It's only there for base64 encoding.
 AM_CFLAGS   = $(PCRE_CFLAGS) $(OPENSSL_CFLAGS)
 AM_CPPFLAGS = $(PCRE_CPPFLAGS) $(OPENSSL_CPPFLAGS)
@@ -31,7 +41,10 @@ AM_LDFLAGS  = $(PCRE_LDFLAGS) $(OPENSSL_LDFLAGS)
 libutils_la_LIBADD = ../libcompat/libcompat.la
 libutils_la_LIBS     = $(PCRE_LIBS) $(OPENSSL_LIBS)
 
+platform.h: platform.h.gch
+
 libutils_la_SOURCES = \
+	platform.h \
 	alloc.c alloc.h \
 	atexit.c atexit.h \
 	compiler.h \
@@ -43,7 +56,6 @@ libutils_la_SOURCES = \
 	statistics.c statistics.h \
 	string_lib.c string_lib.h \
 	pcre_include.h \
-	platform.h \
 	proc_keyvalue.c proc_keyvalue.h \
 	bool.h \
 	json.c json.h json-priv.h \
@@ -81,7 +93,7 @@ if CYGWIN
   libutils_la_SOURCES += unix_dir.c
 endif
 
-CLEANFILES = *.gcno *.gcda
+CLEANFILES = *.gcno *.gcda *.gch
 
 #
 # Some basic clean ups

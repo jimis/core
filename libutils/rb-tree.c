@@ -21,11 +21,13 @@
   (COSL) may apply to this file if you as a licensee so wish it. See
   included file COSL.txt.
 */
+
+
+#include <platform.h>
 #include <rb-tree.h>
 
 #include <alloc.h>
 
-#include <assert.h>
 
 typedef struct RBNode_ RBNode;
 

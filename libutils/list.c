@@ -22,9 +22,13 @@
   included file COSL.txt.
 */
 
-#include <assert.h>
-#include <alloc.h>
+
+#include <platform.h>
 #include <list.h>
+
+#include <alloc.h>
+#include <refcount.h>
+
 
 struct ListNode {
     void *payload;

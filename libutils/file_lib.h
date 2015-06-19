@@ -25,8 +25,11 @@
 #ifndef CFENGINE_FILE_LIB_H
 #define CFENGINE_FILE_LIB_H
 
+
 #include <platform.h>
+
 #include <writer.h>
+
 
 typedef enum
 {

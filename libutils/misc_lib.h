@@ -25,6 +25,7 @@
 #ifndef CFENGINE_MISC_LIB_H
 #define CFENGINE_MISC_LIB_H
 
+
 #include <platform.h>
 
 #include <compiler.h>

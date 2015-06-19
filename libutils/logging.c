@@ -22,10 +22,14 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
 #include <logging.h>
+
 #include <alloc.h>
 #include <string_lib.h>
 #include <misc_lib.h>
+
 
 char VPREFIX[1024] = ""; /* GLOBAL_C */
 

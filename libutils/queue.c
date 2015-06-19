@@ -22,9 +22,13 @@
   included file COSL.txt.
 */
 
-#include <alloc.h>
+
+#include <platform.h>
 #include <queue.h>
+
+#include <alloc.h>
 #include <refcount.h>
+
 
 typedef struct QueueNode_ {
     void *data;                 /*!< Pointer to the stored element */

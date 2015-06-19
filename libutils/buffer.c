@@ -22,8 +22,11 @@
   included file COSL.txt.
 */
 
-#include <alloc.h>
+
+#include <platform.h>
 #include <buffer.h>
+
+#include <alloc.h>
 #include <refcount.h>
 #include <misc_lib.h>
 

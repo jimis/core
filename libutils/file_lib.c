@@ -22,11 +22,14 @@
   included file COSL.txt.
 */
 
-#include <file_lib.h>
-#include <dir.h>
 
+#include <platform.h>
+#include <file_lib.h>
+
+#include <dir.h>
 #include <alloc.h>
 #include <logging.h>
+
 
 bool FileCanOpen(const char *path, const char *modes)
 {

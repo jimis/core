@@ -25,9 +25,13 @@
 #ifndef CFENGINE_SET_H
 #define CFENGINE_SET_H
 
+
+#include <platform.h>
+
 #include <map.h>
 #include <buffer.h>
 #include <json.h>
+
 
 typedef Map Set;
 typedef MapIterator SetIterator;

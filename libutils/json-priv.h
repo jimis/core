@@ -25,7 +25,11 @@
 #ifndef CFENGINE_JSON_PRIV_H
 #define CFENGINE_JSON_PRIV_H
 
+
+#include <platform.h>
+
 #include <json.h>
+
 
 extern const int DEFAULT_CONTAINER_CAPACITY;
 

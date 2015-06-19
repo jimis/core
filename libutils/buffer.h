@@ -25,8 +25,10 @@
 #ifndef CFENGINE_BUFFER_H
 #define CFENGINE_BUFFER_H
 
+
 #include <platform.h>
 #include <compiler.h>
+
 
 /**
   @brief Buffer implementation

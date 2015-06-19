@@ -22,10 +22,14 @@
   included file COSL.txt.
 */
 
-#include <alloc.h>
+
+#include <platform.h>
 #include <refcount.h>
+
+#include <alloc.h>
 #include <misc_lib.h>
 #include <platform.h>
+
 
 void RefCountNew(RefCount **ref)
 {

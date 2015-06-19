@@ -25,7 +25,9 @@
 #ifndef CFENGINE_STRING_LIB_H
 #define CFENGINE_STRING_LIB_H
 
+
 #include <platform.h>
+
 #include <compiler.h>
 #include <sequence.h>
 #include <pcre_include.h>

@@ -23,7 +23,9 @@
 */
 
 
+#include <platform.h>
 #include <sequence.h>
+
 #include <alloc.h>
 
 

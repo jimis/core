@@ -22,9 +22,12 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
 #include <csv_writer.h>
 
 #include <alloc.h>
+
 
 struct CsvWriter_
 {

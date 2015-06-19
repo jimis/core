@@ -22,6 +22,9 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
+
 #include <logging.h>
 #include <json.h>
 #include <json-priv.h>

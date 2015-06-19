@@ -22,11 +22,13 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
 #include <man.h>
 
 #include <string_lib.h>
-
 #include <time.h>
+
 
 static void WriteCopyright(Writer *out)
 {

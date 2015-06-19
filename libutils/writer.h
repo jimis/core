@@ -25,6 +25,12 @@
 #ifndef CFENGINE_WRITER_H
 #define CFENGINE_WRITER_H
 
+
+#include <platform.h>
+
+#include <compiler.h>
+
+
 /*
  * Abstract "writer".
  *
@@ -35,8 +41,6 @@
 
 typedef struct Writer_ Writer;
 
-#include <platform.h>
-#include <compiler.h>
 
 Writer *FileWriter(FILE *);
 Writer *StringWriter(void);

@@ -22,6 +22,9 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
+
 #include <proc_keyvalue.h>
 
 typedef struct

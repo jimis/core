@@ -22,9 +22,10 @@
   included file COSL.txt.
 */
 
+#include <platform.h>
+
 #include <statistics.h>
 
-#include <platform.h>
 
 /**********************************************************************/
 

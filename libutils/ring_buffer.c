@@ -21,6 +21,9 @@
   (COSL) may apply to this file if you as a licensee so wish it. See
   included file COSL.txt.
 */
+
+
+#include <platform.h>
 #include <ring_buffer.h>
 
 #include <alloc.h>

@@ -25,6 +25,7 @@
 #ifndef CFENGINE_HASHES_H
 #define CFENGINE_HASHES_H
 
+
 #include <platform.h>
 
 #include <openssl/evp.h>

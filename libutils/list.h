@@ -25,8 +25,9 @@
 #ifndef CFENGINE_LIST_H
 #define CFENGINE_LIST_H
 
-#include <stdlib.h>
-#include <refcount.h>
+
+#include <platform.h>
+
 
 /**
   @brief Double linked list implementation.

@@ -22,6 +22,9 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
+
 #include <unicode.h>
 
 void ConvertFromCharToWChar(int16_t *dst, const char *src, size_t size)

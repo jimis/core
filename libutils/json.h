@@ -25,6 +25,10 @@
 #ifndef CFENGINE_JSON_H
 #define CFENGINE_JSON_H
 
+
+#include <platform.h>
+
+
 /**
   @brief JSON data-structure.
 

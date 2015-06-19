@@ -21,12 +21,16 @@
   (COSL) may apply to this file if you as a licensee so wish it. See
   included file COSL.txt.
 */
+
+
+#include <platform.h>
 #include <mustache.h>
 
 #include <string_lib.h>
 #include <logging.h>
 #include <alloc.h>
 #include <sequence.h>
+
 
 typedef enum
 {

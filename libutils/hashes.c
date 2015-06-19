@@ -22,11 +22,13 @@
   included file COSL.txt.
 */
 
+
+#include <platform.h>
 #include <hashes.h>
 
-#include <file_lib.h>
-
 #include <openssl/evp.h>
+
+#include <file_lib.h>
 
 
 int FileChecksum(const char *filename, unsigned char digest[EVP_MAX_MD_SIZE + 1])

@@ -22,13 +22,15 @@
   included file COSL.txt.
 */
 
-#include <misc_lib.h>
 
 #include <platform.h>
+#include <misc_lib.h>
+
+#include <stdarg.h>
+
 #include <alloc.h>
 #include <logging.h>
 
-#include <stdarg.h>
 
 unsigned long UnsignedModulus(long dividend, long divisor)
 {

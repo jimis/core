@@ -25,7 +25,12 @@
 #ifndef CFENGINE_BOOL_H
 #define CFENGINE_BOOL_H
 
+
+/* TODO this belongs inside platform.h! DELETE bool.h! */
+
+
 #include <platform.h>
+
 
 #ifdef HAVE_STDBOOL_H
 # include <stdbool.h>
