@@ -2573,7 +2573,7 @@ static bool ReadLine(const char *filename, char *buf, int bufsize)
 
 static FILE *ReadFirstLine(const char *filename, char *buf, int bufsize)
 {
-    FILE *fp = safe_fopen(filename, "r");
+    FILE *fp = fopen(filename, "r");
 
     if (fp == NULL)
     {
