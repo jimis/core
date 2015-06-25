@@ -1002,18 +1002,12 @@ static void OSClasses(EvalContext *ctx)
             }
 
             /* Check if string ends with "/systemd". */
-            char *p;
-            char *next_p = NULL;
-            const char *term = "/systemd";
-            do
-            {
-                p = next_p;
-                next_p = strstr(next_p ? next_p+strlen(term) : init_path, term);
-            }
-            while (next_p);
+            char const * const term     = "/systemd";
+            const size_t       term_len = strlen(term);
+            const size_t  init_path_len = strlen(init_path);
 
-            if (p != NULL &&
-                p[strlen("/systemd")] == '\0')
+            if (init_path_len >= term_len &&
+                strcmp(&init_path[init_path_len - term_len], term) == 0)
             {
                 EvalContextClassPutHard(ctx, "systemd",
                                         "inventory,attribute_name=none,source=agent");
