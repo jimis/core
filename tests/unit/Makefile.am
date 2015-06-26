@@ -49,6 +49,7 @@ AM_LDFLAGS = $(CORE_LDFLAGS)
 
 check_LTLIBRARIES = libtest.la
 libtest_la_SOURCES = cmockery.c cmockery.h schema.h test.c test.h \
+	mock.c mock.h mock_stubs_real.c mock_stubs_real.h \
 	../../libutils/alloc.c \
 	../../libpromises/patches.c \
 	../../libpromises/constants.c \
@@ -386,6 +387,8 @@ exec_config_test_LDADD = libtest.la ../../libpromises/libpromises.la
 sysinfo_test_LDADD = libtest.la \
 	../../libenv/libenv.la \
 	../../libpromises/libpromises.la
+# sysinfo_test is mocking the libc functions
+sysinfo_test_LDFLAGS = -Wl,--wrap=fopen,--wrap=fclose,--wrap=fgets
 
 mon_cpu_test_SOURCES = mon_cpu_test.c ../../cf-monitord/mon.h ../../cf-monitord/mon_cpu.c
 mon_cpu_test_LDADD = ../../libpromises/libpromises.la libtest.la
