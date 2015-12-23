@@ -1,0 +1,18 @@
+bundle agent main
+{
+
+  files:
+      "/tmp/."
+        depth_search => recurse("inf"),
+        file_select => large,
+        delete => tidy;
+}
+
+body file_select large
+{
+
+  search_size => irange("1G", "2G");
+  file_result => "size";
+}
+
+body file control { inputs => { "$(sys.libdir)/stdlib.cf" }; }
