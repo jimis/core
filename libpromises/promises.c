@@ -548,6 +548,7 @@ Promise *ExpandDeRefPromise(EvalContext *ctx, const Promise *pp, bool *excluded)
     Rval returnval = ExpandPrivateRval(ctx, NULL, "this", pp->promiser, RVAL_TYPE_SCALAR);
     if (!returnval.item || (strcmp(returnval.item, CF_NULL_VALUE) == 0))
     {
+        RvalDestroy(returnval);
         *excluded = true;
         return NULL;
     }
