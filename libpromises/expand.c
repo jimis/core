@@ -557,7 +557,8 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                     tmp_list = NULL;
                 }
 
-                // No need to map this.* even though it's technically qualified
+                /* Mangle the namespaced/scoped variables.  No need to map
+                   "this.*" even though it's technically qualified. */
                 if (success && IsQualifiedVariable(BufferData(value)) && strcmp(ref->scope, "this") != 0)
                 {
                     char *dotpos = strchr(substring, '.');
@@ -971,7 +972,9 @@ static void CopyLocalizedReferencesToBundleScope(EvalContext *ctx,
     {
         const char *mangled = RlistScalarValue(rp);
 
-        if (strchr(mangled, CF_MAPPEDLIST))                   /* if mangled */
+        /* If mangled, get the value/type of the demangled so that you can put
+         * the same value/type to the mangled one. */
+        if (strchr(mangled, CF_MAPPEDLIST))
         {
             char *demangled = xstrdup(mangled);
             DeMangleVarRefString(demangled, strlen(demangled));
@@ -1402,68 +1405,57 @@ bool IsExpandable(const char *str)
 
 /*********************************************************************/
 
+static char opposite(char c)
+{
+    switch (c)
+    {
+    case '(':  return ')';
+    case '{':  return '}';
+    default :  ProgrammingError("Was expecting '(' or '{' but got: '%c'", c);
+    }
+    return 0;
+}
+
+/**
+ * Check if #str contains one and only one variable expansion of #vtype kind
+ * (it's usually either '$' or '@'). It can contain nested expansions which
+ * are not checked properly. Examples:
+ *     true:  "$(whatever)", "${whatever}", "$(blah$(blue))"
+ *     false: "$(blah)blue", "blah$(blue)", "$(blah)$(blue)", "$(blah}"
+ */
 bool IsNakedVar(const char *str, char vtype)
 {
-    int count = 0;
+    size_t len = strlen(str);
+    char last  = len > 0 ? str[len-1] : 0;
 
-    if (str == NULL || strlen(str) == 0)
+    if (len < 3
+        || str[0] != vtype
+        || (str[1] != '(' && str[1] != '{')
+        || last != opposite(str[1]))
     {
         return false;
     }
 
-    char last = *(str + strlen(str) - 1);
-
-    if (strlen(str) < 3)
-    {
-        return false;
-    }
-
-    if (*str != vtype)
-    {
-        return false;
-    }
-
-    switch (*(str + 1))
-    {
-    case '(':
-        if (last != ')')
-        {
-            return false;
-        }
-        break;
-
-    case '{':
-        if (last != '}')
-        {
-            return false;
-        }
-        break;
-
-    default:
-        return false;
-        break;
-    }
-
+    /* TODO check if nesting happens correctly? Is it needed? */
+    size_t count = 0;
     for (const char *sp = str; *sp != '\0'; sp++)
     {
         switch (*sp)
         {
         case '(':
         case '{':
-        case '[':
             count++;
             break;
         case ')':
         case '}':
-        case ']':
             count--;
 
-            /* The last character must be the end of the variable */
-
-            if (count == 0 && strlen(sp) > 1)
+            /* Make sure the end of the variable is the last character. */
+            if (count == 0 && sp[1] != '\0')
             {
                 return false;
             }
+
             break;
         }
     }
