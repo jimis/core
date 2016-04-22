@@ -275,7 +275,6 @@ void MapIteratorsFromRval(EvalContext *ctx, const Bundle *bundle, Rval rval,
     case RVAL_TYPE_SCALAR:
     {
         const char *s = RvalScalarValue(rval);
-        /* TODO CALL THIS INSIDE THE COMBINATORIAL ENGINE AND LOOK FOR UNBOUND VARS. */
         ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), 0,
                                         scalars, lists, containers, NULL);
         break;
