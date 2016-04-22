@@ -172,14 +172,35 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
     return result;
 }
 
+static void PutHandleVariable(EvalContext *ctx, const Promise *pp)
+{
+    char *handle_s;
+    const char *existing_handle = PromiseGetHandle(pp);
+
+    if (existing_handle != NULL)
+    {
+        // This ordering is necessary to get automated canonification
+        handle_s = ExpandScalar(ctx, NULL, "this", existing_handle, NULL);
+        CanonifyNameInPlace(handle_s);
+    }
+    else
+    {
+        handle_s = xstrdup(PromiseID(pp));                /* default handle */
+    }
+
+    EvalContextVariablePutSpecial(ctx, SPECIAL_SCOPE_THIS,
+                                  "handle", handle_s,
+                                  CF_DATA_TYPE_STRING, "source=promise");
+    free(handle_s);
+}
+
 static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, const Promise *pp,
                                         Rlist *lists, Rlist *containers,
                                         PromiseActuator *ActOnPromise, void *param)
 {
-    const char *handle = PromiseGetHandle(pp);
-
     PromiseResult result = PROMISE_RESULT_SKIPPED;
 
+    PutHandleVariable(ctx, pp);
     EvalContextStackPushPromiseFrame(ctx, pp, true);
     PromiseIterator *iter_ctx = PromiseIteratorNew(ctx, pp, lists, containers);
 
@@ -194,24 +215,6 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, const Promise *pp,
      * pre-eval, i.e. if ActOnPromise is CommonEvalPromise(). */
     do
     {
-        char *handle_s;
-
-        if (handle != NULL)
-        {
-            // This ordering is necessary to get automated canonification
-            handle_s = ExpandScalar(ctx, NULL, "this", handle, NULL);
-            CanonifyNameInPlace(handle_s);
-        }
-        else
-        {
-            handle_s = xstrdup(PromiseID(pp));            /* default handle */
-        }
-
-        EvalContextVariablePutSpecial(ctx, SPECIAL_SCOPE_THIS,
-                                      "handle", handle_s,
-                                      CF_DATA_TYPE_STRING, "source=promise");
-        free(handle_s);
-
         /* Put all wheel variables into the EvalContext. */
         PromiseIteratorUpdateVariables(ctx, iter_ctx);
 
