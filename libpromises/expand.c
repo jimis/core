@@ -155,10 +155,10 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
 
     /* 3. Now all scalars, slists and containers have been identified, and
      *    possibly mangled. Put the variable values in the EvalContext. */
-
-    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), lists);
-    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), scalars);
-    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), containers);
+//TODO THIS IS PROBABLY STILL NEEDED but must be handled elsewhere
+//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), lists);
+//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), scalars);
+//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), containers);
 
     /* 4. GO! */
     PromiseResult result = ExpandPromiseAndDo(ctx, pcopy, lists, containers, ActOnPromise, param);
@@ -216,7 +216,7 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, const Promise *pp,
     do
     {
         /* Put all wheel variables into the EvalContext. */
-        PromiseIteratorUpdateVariables(ctx, iter_ctx);
+//        PromiseIteratorUpdateVariables(ctx, iter_ctx);
 
         /*
          * ACTUAL WORK PART 1: lots of hidden stuff in this function.
@@ -274,9 +274,10 @@ void MapIteratorsFromRval(EvalContext *ctx, const Bundle *bundle, Rval rval,
     {
     case RVAL_TYPE_SCALAR:
     {
-        const char *s = RvalScalarValue(rval);
-        ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), 0,
-                                        scalars, lists, containers, NULL);
+        PromiseIteratorPrepare(iterctx, RvalScalarValue(rval));
+        /* const char *s = RvalScalarValue(rval); */
+        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), 0, */
+        /*                                 scalars, lists, containers, NULL); */
         break;
     }
     case RVAL_TYPE_LIST:
@@ -289,9 +290,10 @@ void MapIteratorsFromRval(EvalContext *ctx, const Bundle *bundle, Rval rval,
 
     case RVAL_TYPE_FNCALL:
     {
-        const char *fn_name = RvalFnCallValue(rval)->name;
-        ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name),
-                                        0, scalars, lists, containers, NULL);
+        PromiseIteratorPrepare(iterctx, RvalFnCallValue(rval)->name);
+        /* const char *fn_name = RvalFnCallValue(rval)->name; */
+        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name), */
+        /*                                 0, scalars, lists, containers, NULL); */
 
         /* Check each of the function arguments. */
         for (const Rlist *rp = RvalFnCallValue(rval)->args; rp; rp = rp->next)
@@ -741,7 +743,7 @@ Rval ExpandBundleReference(EvalContext *ctx,
 }
 
 /**
- * Expand a scalar into Buffer #out, returning the pointer to the string
+ * Expand a #string into Buffer #out, returning the pointer to the string
  * itself, inside the Buffer #out. If #out is NULL then the buffer will be
  * created and destroyed internally.
  *

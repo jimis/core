@@ -1920,6 +1920,7 @@ static Variable *VariableResolve(const EvalContext *ctx, const VarRef *ref)
 
 const void *EvalContextVariableGet(const EvalContext *ctx, const VarRef *ref, DataType *type_out)
 {
+//    char *s = VarRefToString(ref, true); Log(LOG_LEVEL_DEBUG, "EvalContextVariableGet(): %s", s); free(s);
     Variable *var = VariableResolve(ctx, ref);
     if (var)
     {

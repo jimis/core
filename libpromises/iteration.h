@@ -34,7 +34,7 @@
 
 typedef struct PromiseIterator_ PromiseIterator;
 
-
+/*
 Rlist *ContainerToRlist(const JsonElement *container);
 PromiseIterator *PromiseIteratorNew(EvalContext *ctx, const Promise *pp, const Rlist *lists, const Rlist *containers);
 void PromiseIteratorDestroy(PromiseIterator *iter_ctx);
@@ -47,6 +47,6 @@ bool PromiseIteratorHasNullIterators(const PromiseIterator *iter_ctx);
 void PromiseIteratorUpdateVariables(EvalContext *ctx, const PromiseIterator *iter_ctx);
 
 size_t PromiseIteratorIndex(const PromiseIterator *iter_ctx);
-
+*/
 
 #endif
