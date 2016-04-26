@@ -45,9 +45,7 @@
 
 #define CF_MAPPEDLIST '#'
 
-static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, const Promise *pp,
-                                        Rlist *lists, Rlist *containers,
-                                        PromiseActuator *ActOnPromise, void *param);
+#if 0
 static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                                             const Bundle *bundle,
                                             const char *s, size_t s_len,
@@ -55,6 +53,7 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                                             Rlist **scalars, Rlist **lists,
                                             Rlist **containers,
                                             Rlist **full_expansion);
+#endif
 static void CopyLocalizedReferencesToBundleScope(EvalContext *ctx,
                                                  const Bundle *bundle,
                                                  const Rlist *ref_names);
@@ -117,60 +116,6 @@ since these cannot be mapped into "this" without some magic.
 
 **********************************************************************/
 
-PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
-                            PromiseActuator *ActOnPromise, void *param)
-{
-    if (!IsDefinedClass(ctx, pp->classes))
-    {
-        return PROMISE_RESULT_SKIPPED;
-    }
-
-    Rlist *lists = NULL;
-    Rlist *scalars = NULL;
-    Rlist *containers = NULL;
-
-    /* 1. Copy the promise while expanding '@' slists and body arguments
-     *    (including body inheritance). */
-    Promise *pcopy = DeRefCopyPromise(ctx, pp);
-
-    /* 2. Parse everything for creating iterators over
-          slists and containers. */
-
-    MapIteratorsFromRval(ctx, PromiseGetBundle(pp),
-                         (Rval) { pcopy->promiser, RVAL_TYPE_SCALAR },
-                         &scalars, &lists, &containers);
-
-    if (pcopy->promisee.item != NULL)
-    {
-        MapIteratorsFromRval(ctx, PromiseGetBundle(pp), pp->promisee,
-                             &scalars, &lists, &containers);
-    }
-
-    for (size_t i = 0; i < SeqLength(pcopy->conlist); i++)
-    {
-        Constraint *cp = SeqAt(pcopy->conlist, i);
-        MapIteratorsFromRval(ctx, PromiseGetBundle(pp), cp->rval,
-                             &scalars, &lists, &containers);
-    }
-
-    /* 3. Now all scalars, slists and containers have been identified, and
-     *    possibly mangled. Put the variable values in the EvalContext. */
-//TODO THIS IS PROBABLY STILL NEEDED but must be handled elsewhere
-//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), lists);
-//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), scalars);
-//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), containers);
-
-    /* 4. GO! */
-    PromiseResult result = ExpandPromiseAndDo(ctx, pcopy, lists, containers, ActOnPromise, param);
-
-    PromiseDestroy(pcopy);
-
-    RlistDestroy(lists);
-    RlistDestroy(scalars);
-    RlistDestroy(containers);
-
-    return result;
-}
 
 static void PutHandleVariable(EvalContext *ctx, const Promise *pp)
 {
@@ -194,44 +139,96 @@ static void PutHandleVariable(EvalContext *ctx, const Promise *pp)
     free(handle_s);
 }
 
-static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, const Promise *pp,
+/*
+ * Search for unexpanded scalars, lists and containers in all kinds of Rval.
+ */
+// TODO generic callback
+void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bundle *bundle, Rval rval,
+                          Rlist **scalars, Rlist **lists, Rlist **containers)
+{
+    switch (rval.type)
+    {
+    case RVAL_TYPE_SCALAR:
+    {
+        PromiseIteratorPrepare(iterctx, RvalScalarValue(rval));
+        /* const char *s = RvalScalarValue(rval); */
+        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), 0, */
+        /*                                 scalars, lists, containers, NULL); */
+        break;
+    }
+    case RVAL_TYPE_LIST:
+        for (const Rlist *rp = RvalRlistValue(rval); rp; rp = rp->next)
+        {
+            MapIteratorsFromRval(ctx, iterctx, bundle, rp->val,
+                                 scalars, lists, containers);
+        }
+        break;
+
+    case RVAL_TYPE_FNCALL:
+    {
+        PromiseIteratorPrepare(iterctx, RvalFnCallValue(rval)->name);
+        /* const char *fn_name = RvalFnCallValue(rval)->name; */
+        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name), */
+        /*                                 0, scalars, lists, containers, NULL); */
+
+        /* Check each of the function arguments. */
+        for (const Rlist *rp = RvalFnCallValue(rval)->args; rp; rp = rp->next)
+        {
+            MapIteratorsFromRval(ctx, iterctx, bundle, rp->val,
+                                 scalars, lists, containers);
+        }
+        break;
+    }
+    case RVAL_TYPE_CONTAINER:
+    case RVAL_TYPE_NOPROMISEE:
+        Log(LOG_LEVEL_DEBUG,
+            "Unknown Rval type for scope '%s'", bundle->name);
+        break;
+    }
+}
+
+static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterctx, const Promise *pp,
                                         Rlist *lists, Rlist *containers,
                                         PromiseActuator *ActOnPromise, void *param)
 {
     PromiseResult result = PROMISE_RESULT_SKIPPED;
 
-    PutHandleVariable(ctx, pp);
-    EvalContextStackPushPromiseFrame(ctx, pp, true);
-    PromiseIterator *iter_ctx = PromiseIteratorNew(ctx, pp, lists, containers);
-
     /* If any of the lists we iterate is null or contains only cf_null
      * values, then skip the entire promise. */
-    if (PromiseIteratorHasNullIterators(iter_ctx))
-    {
-        goto cleanup;
-    }
+    /* if (PromiseIteratorHasNullIterators(iter_ctx)) */
+    /* { */
+    /*     goto cleanup; */
+    /* } */
+
+
 
     /* TODO no need to iterate for non vars/classes promises during
      * pre-eval, i.e. if ActOnPromise is CommonEvalPromise(). */
-    do
+    while (true)
     {
-        /* Put all wheel variables into the EvalContext. */
-//        PromiseIteratorUpdateVariables(ctx, iter_ctx);
+
+        if (!PromiseIteratorNext(iterctx, ctx))
+        {
+            break;
+        }
 
         /*
          * ACTUAL WORK PART 1: lots of hidden stuff in this function.
          *
-         * One is evaluation of all functions, even if they are not to be used
-         * immediately (for example promises that the actuator skips).
+         * Basically it evaluates all constraints.  As a result it evaluates
+         * all functions, even if they are not to be used immediately (for
+         * example promises that the actuator skips).
          */
         const Promise *pexp =                       /* expanded promise */
-            EvalContextStackPushPromiseIterationFrame(ctx, iter_ctx);
-        if (pexp == NULL)
+            EvalContextStackPushPromiseIterationFrame(ctx, iterctx);
+        if (pexp == NULL)                       /* is the promise excluded? */
         {
-            // excluded
             result = PromiseResultUpdate(result, PROMISE_RESULT_SKIPPED);
             continue;
         }
+
+        /* Put all wheel variables into the EvalContext. */
+//        PromiseIteratorUpdateVariables(ctx, iter_ctx);
 
         /* ACTUAL WORK PART 2: run the actuator */
         PromiseResult iteration_result = ActOnPromise(ctx, pexp, param);
@@ -254,65 +251,79 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, const Promise *pp,
         }
 
         EvalContextStackPopFrame(ctx);
-
-    } while (PromiseIteratorNext(iter_ctx));
+    }
 
   cleanup:
-    PromiseIteratorDestroy(iter_ctx);
+    PromiseIteratorDestroy(iterctx);
     EvalContextStackPopFrame(ctx);
 
     return result;
 }
 
-/*
- * Search for unexpanded scalars, lists and containers in all kinds of Rval.
- */
-void MapIteratorsFromRval(EvalContext *ctx, const Bundle *bundle, Rval rval,
-                          Rlist **scalars, Rlist **lists, Rlist **containers)
+PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
+                            PromiseActuator *ActOnPromise, void *param)
 {
-    switch (rval.type)
+    if (!IsDefinedClass(ctx, pp->classes))
     {
-    case RVAL_TYPE_SCALAR:
-    {
-        PromiseIteratorPrepare(iterctx, RvalScalarValue(rval));
-        /* const char *s = RvalScalarValue(rval); */
-        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), 0, */
-        /*                                 scalars, lists, containers, NULL); */
-        break;
+        return PROMISE_RESULT_SKIPPED;
     }
-    case RVAL_TYPE_LIST:
-        for (const Rlist *rp = RvalRlistValue(rval); rp; rp = rp->next)
-        {
-            MapIteratorsFromRval(ctx, bundle, rp->val,
-                                 scalars, lists, containers);
-        }
-        break;
 
-    case RVAL_TYPE_FNCALL:
-    {
-        PromiseIteratorPrepare(iterctx, RvalFnCallValue(rval)->name);
-        /* const char *fn_name = RvalFnCallValue(rval)->name; */
-        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name), */
-        /*                                 0, scalars, lists, containers, NULL); */
+    Rlist *lists = NULL;
+    Rlist *scalars = NULL;
+    Rlist *containers = NULL;
 
-        /* Check each of the function arguments. */
-        for (const Rlist *rp = RvalFnCallValue(rval)->args; rp; rp = rp->next)
-        {
-            MapIteratorsFromRval(ctx, bundle, rp->val,
-                                 scalars, lists, containers);
-        }
-        break;
+    /* 1. Copy the promise while expanding '@' slists and body arguments
+     *    (including body inheritance). */
+    Promise *pcopy = DeRefCopyPromise(ctx, pp);
+
+//    PromiseIterator *iterctx = PromiseIteratorNew(ctx, pp, lists, containers);
+    PromiseIterator *iterctx = PromiseIteratorNew(pcopy);
+
+    /* 2. Parse everything for creating iterators over
+          slists and containers. */
+
+    MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pp),
+                         (Rval) { pcopy->promiser, RVAL_TYPE_SCALAR },
+                         &scalars, &lists, &containers);
+
+    if (pcopy->promisee.item != NULL)
+    {
+        MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pp), pp->promisee,
+                             &scalars, &lists, &containers);
     }
-    case RVAL_TYPE_CONTAINER:
-    case RVAL_TYPE_NOPROMISEE:
-        Log(LOG_LEVEL_DEBUG,
-            "Unknown Rval type for scope '%s'", bundle->name);
-        break;
+
+    for (size_t i = 0; i < SeqLength(pcopy->conlist); i++)
+    {
+        Constraint *cp = SeqAt(pcopy->conlist, i);
+        MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pp), cp->rval,
+                             &scalars, &lists, &containers);
     }
+
+    /* 3. Now all scalars, slists and containers have been identified, and
+     *    possibly mangled. Put the variable values in the EvalContext. */
+//TODO THIS IS PROBABLY STILL NEEDED but must be handled elsewhere
+//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), lists);
+//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), scalars);
+//    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), containers);
+
+    /* 4. GO! */
+    EvalContextStackPushPromiseFrame(ctx, pcopy, true);         /* TODO where is this popped? */
+    PutHandleVariable(ctx, pcopy);
+    PromiseResult result = ExpandPromiseAndDo(ctx, iterctx, pcopy, lists, containers, ActOnPromise, param);
+
+    PromiseDestroy(pcopy);
+
+    RlistDestroy(lists);
+    RlistDestroy(scalars);
+    RlistDestroy(containers);
+
+    return result;
 }
+
 
 /*********************************************************************/
 
+#if 0
 static void RlistConcatInto(Rlist **dest,
                             const Rlist *src, const char *extension)
 {
@@ -615,7 +626,7 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
     free(lists_s);
     free(scalars_s);
 }
-
+#endif
 /*********************************************************************/
 
 /* TODO undestand */
@@ -981,7 +992,7 @@ static void CopyLocalizedReferencesToBundleScope(EvalContext *ctx,
         if (strchr(mangled, CF_MAPPEDLIST))
         {
             char *demangled = xstrdup(mangled);
-            DeMangleVarRefString(demangled, strlen(demangled));
+//            DeMangleVarRefString(demangled, strlen(demangled));
 
             Log(LOG_LEVEL_DEBUG, "                 '%s' demangle -> '%s'",
                 mangled, demangled);

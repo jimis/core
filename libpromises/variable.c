@@ -132,6 +132,8 @@ bool VariableTablePut(VariableTable *table, const VarRef *ref,
 {
     assert(VarRefIsQualified(ref));
 
+    Log(LOG_LEVEL_DEBUG, "VariableTablePut(%s)", ref->lval);
+
     Variable *var = VariableNew(VarRefCopy(ref), RvalCopy(*rval), type,
                                 StringSetFromString(tags, ','), promise);
     return VarMapInsert(table->vars, var->ref, var);

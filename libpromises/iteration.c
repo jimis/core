@@ -65,6 +65,7 @@ typedef struct {
 typedef struct PromiseIterator_ {
     Seq *wheels;
     const Promise *pp;                                   /* not owned by us */
+    size_t count;                                       /* iterations count */
 } PromiseIterator;
 
 
@@ -82,6 +83,7 @@ Wheel *WheelNew(const char *varname, size_t varname_len)
         .vartype       = -1,
         .iter_index    = 0
     };
+
     return xmemdup(&new_wheel, sizeof(new_wheel));
 }
 
@@ -91,6 +93,20 @@ void WheelDestroy(void *wheel)
     free(w->varname_unexp);
 //    BufferDestroy(w->varname_exp);
     free(w->varname_exp);
+
+    /* Only if it is a container we need to free, since it was trasformed
+     * to a Seq of strings. */
+    if (w->vartype == CF_DATA_TYPE_CONTAINER)
+    {
+        size_t values_len = SeqLength(w->values);
+        for (size_t i = 0; i < values_len; i++)
+        {
+            char *value = SeqAt(w->values, i);
+            free(value);
+        }
+    }
+    SeqDestroy(w->values);
+
     free(w);
 }
 
@@ -104,9 +120,11 @@ int WheelCompareUnexpanded(const void *wheel1, const void *wheel2,
 
 PromiseIterator *PromiseIteratorNew(const Promise *pp)
 {
+    Log(LOG_LEVEL_DEBUG, "PromiseIteratorNew()");
     PromiseIterator iterctx = {
         .wheels = SeqNew(4, WheelDestroy),
-        .pp     = pp
+        .pp     = pp,
+        .count  = 0
     };
     return xmemdup(&iterctx, sizeof(iterctx));
 }
@@ -115,6 +133,11 @@ void PromiseIteratorDestroy(PromiseIterator *iterctx)
 {
     SeqDestroy(iterctx->wheels);
     free(iterctx);
+}
+
+size_t PromiseIteratorIndex(const PromiseIterator *iter_ctx)
+{
+    return iter_ctx->count;
 }
 
 
@@ -203,11 +226,21 @@ static const char *ProcessVar(PromiseIterator *iterctx, const char *s, char c)
                                         WheelCompareUnexpanded)  !=  NULL;
         if (!same_var_found)
         {
-        /* If this variable is dependent on other variables, we've
-         * already appended the wheels of the dependencies during the
-         * recursive calls. Or it happens and this is an independent
-         * variable. So APPEND the wheel for this variable. */
+            /* If this variable is dependent on other variables, we've already
+             * appended the wheels of the dependencies during the recursive
+             * calls. Or it happens and this is an independent variable. So
+             * APPEND the wheel for this variable. */
             SeqAppend(iterctx->wheels, new_wheel);
+            Log(LOG_LEVEL_DEBUG,
+                "Added iteration wheel for variable: %s",
+                new_wheel->varname_unexp);
+        }
+        else
+        {
+            Log(LOG_LEVEL_DEBUG,
+                "Skipped adding iteration wheel for already existing variable: %s",
+                new_wheel->varname_unexp);
+            WheelDestroy(new_wheel);
         }
     }
     else
@@ -240,6 +273,7 @@ void PromiseIteratorPrepare(PromiseIterator *iterctx,
 //                             EvalContext *eval_ctx,
                             const char *s)
 {
+    Log(LOG_LEVEL_DEBUG, "PromiseIteratorPrepare(\"%s\")", s);
     const char *var_start = FindDollarParen_nul(s);
 
     while (*var_start != '\0')
@@ -258,9 +292,10 @@ void PromiseIteratorPrepare(PromiseIterator *iterctx,
 static bool WheelIncrement(PromiseIterator *iterctx, size_t i)
 {
     Wheel *wheel = SeqAt(iterctx->wheels, i);
+
+    wheel->iter_index++;
     if (wheel->iter_index < SeqLength(wheel->values))
     {
-        wheel->iter_index++;
         return true;
     }
     else
@@ -299,7 +334,7 @@ const void *IterVariableGet(const PromiseIterator *iterctx,
                             const char *varname, DataType *type)
 {
     VarRef *ref = VarRefParseFromBundle(varname,
-                                        PromiseGetBundle(iterctx->pp));
+                                              PromiseGetBundle(iterctx->pp));
     const void *value = EvalContextVariableGet(evalctx, ref, type);
     if (value == NULL)                                      /* TODO remove? */
     {
@@ -310,7 +345,6 @@ const void *IterVariableGet(const PromiseIterator *iterctx,
     return value;
 }
 
-/* TODO free whatever we SeqAppend() here. */
 static void SeqAppendContainerPrimitive(Seq *seq, const JsonElement *primitive)
 {
     assert(JsonGetElementType(primitive) == JSON_ELEMENT_TYPE_PRIMITIVE);
@@ -387,7 +421,7 @@ Seq *RlistToSeq(const Rlist *p, DataType t)
     return seq;
 }
 
-Seq *IterableToSeq(void *v, DataType t)
+Seq *IterableToSeq(const void *v, DataType t)
 {
     switch (t)
     {
@@ -418,51 +452,65 @@ void IterVariablePut(const PromiseIterator *iterctx,
 */
 /*
  * TODO PromiseIteratorStart() that populates all the values.
+ * OR even better, start it here if not already started.
  */
 
 bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
 {
+    Log(LOG_LEVEL_DEBUG, "PromiseIteratorNext(): count=%zu", iterctx->count);
     size_t wheels_num = SeqLength(iterctx->wheels);
 
-    /* Try incrementing the rightmost wheels first, i.e. the most
-     * dependent variables. */
-    size_t i = wheels_num - 1;
+    size_t i;                     /* which wheel we're currently working on */
 
-    while (!WheelIncrement(iterctx, i))
+    if (iterctx->count > 0)         /* we've already iterated at least once */
     {
-        if (i == 0)
+        if (wheels_num == 0)
         {
-            return false;                 /* we've iterated over everything */
+            /* nothing to iterate on, so get out after already having iterated
+             * once. */
+            return false;
         }
-        i--;                                /* increment the previous wheel */
+
+        /* Try incrementing the rightmost wheels first, i.e. the most
+         * dependent variables. */
+        i = wheels_num - 1;
+        while (!WheelIncrement(iterctx, i))
+        {
+            if (i == 0)
+            {
+                return false;                 /* we've iterated over everything */
+            }
+            i--;                                /* increment the previous wheel */
+        }
+
+        /*
+         * Alright, incrementing the wheel i was successful;  now:
+         *
+         * 1. add the new value of wheel i to EvalContext, (making sure that the
+         *    variable already existed but the value gets replaced). This is
+         *    basically the basic iteration step, just going to the next value of
+         *    the iterable.
+         */
+        Wheel *wheel    = SeqAt(iterctx->wheels, i);
+        void *new_value = SeqAt(wheel->values, wheel->iter_index);
+
+        IterListElementVariablePut(
+            evalctx, wheel->varname_exp, wheel->vartype, new_value);
+
     }
-
-    /* TODO compute varname_exp of the incremented wheel (and all following
-     * wheels). */
-
-    /*
-     * Alright, incrementing the wheel w was successful;  now:
-     *
-     * 1. add the new value of wheel w to EvalContext, (making sure that the
-     *    variable already existed but the value gets replaced). This is
-     *    basically the basic iteration step, just going to the next value of
-     *    the iterable.
-     */
-    Wheel *wheel    = SeqAt(iterctx->wheels, i);
-    Rval *new_value = SeqAt(wheel->values, wheel->iter_index);
-
-    IterListElementVariablePut(
-        evalctx, wheel->varname_exp, wheel->vartype, new_value);
+    else
+    {
+        /* If no iterations have happened yet, we initialise all wheels. */
+        i = (size_t) -1;               /* increments to 0 in the loop start */
+    }
 
     /* TODO Run it also once when initialising, to reset everything. */
 
     /*
-     * For each of the subsequent wheels:
+     * For each of the subsequent wheels (if any):
      *
-     * 2. expand its varname (if it is expandable based on the
-     *    rest of the wheels and based on the EvalContext
-     *    (or only based on the evalcontext if vars are always Put() )
-     *    - if it's same with previous varname_exp, ignore.
+     * 2. varname_exp = expand the variable name
+     *    - if it's same with previous varname_exp, no need to Put()?
      * 3. values = VariableGet(varname_exp);
      * 4. if the value is an iterator
      *    (slist/container), set the wheel size.
@@ -475,7 +523,8 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
     Buffer *tmpbuf = BufferNew();
     for (i = i + 1; i < wheels_num; i++)
     {
-        wheel = SeqAt(iterctx->wheels, i);
+        Wheel *wheel = SeqAt(iterctx->wheels, i);
+        BufferClear(tmpbuf);
 
         /* Reset wheel in order to re-iterate over all combinations. */
         wheel->iter_index = 0;
@@ -492,7 +541,9 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
          * before (because possibly it doesn't have internal expansions). */
         /* NOT TRUE, THE FRAME HAS BEEN POPPED! TODO ADD THE SIZE-ZERO
          * VARIABLES BEFORE ITERATION STARTS! */
-        if (strcmp(varname, wheel->varname_exp) != 0)
+        /* NULL if it's the first iteration. */
+        if (wheel->varname_exp == NULL
+            || strcmp(varname, wheel->varname_exp) != 0)
         {
             free(wheel->varname_exp);
             wheel->varname_exp = xstrdup(varname);
@@ -502,7 +553,7 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             /* TODO what if after expansion the wheel is still dependent, i.e. the
              * expansion leads to some other expansion? Maybe we should loop here? */
             DataType t;
-            void *value = IterVariableGet(iterctx, evalctx, varname, &t);
+            const void *value = IterVariableGet(iterctx, evalctx, varname, &t);
 
             /* Set wheel values and size according to variable type. */
             if (t == CF_DATA_TYPE_STRING_LIST ||
@@ -510,10 +561,11 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
                 t == CF_DATA_TYPE_REAL_LIST   ||
                 t == CF_DATA_TYPE_CONTAINER)
             {
+                /* TODO SeqDestroy previous values, freeing the container ones. */
                 wheel->values = IterableToSeq(value, t);
                 wheel->vartype = t;
 
-                /* Put the value at 0. */
+                /* Put the first value of the iterable. */
                 IterListElementVariablePut(evalctx, varname, t,
                                            SeqAt(wheel->values, 0));
             }
@@ -524,10 +576,11 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
                 wheel->values = NULL;
             }
         }
-
-        BufferClear(tmpbuf);
     }
 
+    BufferDestroy(tmpbuf);
+
+    iterctx->count++;
     return true;
 }
 
@@ -548,9 +601,37 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
 
 
 
+static void RlistAppendContainerPrimitive(Rlist **list, const JsonElement *primitive)
+{
+    assert(JsonGetElementType(primitive) == JSON_ELEMENT_TYPE_PRIMITIVE);
 
-#if 0
+    switch (JsonGetPrimitiveType(primitive))
+    {
+    case JSON_PRIMITIVE_TYPE_BOOL:
+        RlistAppendScalar(list, JsonPrimitiveGetAsBool(primitive) ? "true" : "false");
+        break;
+    case JSON_PRIMITIVE_TYPE_INTEGER:
+        {
+            char *str = StringFromLong(JsonPrimitiveGetAsInteger(primitive));
+            RlistAppendScalar(list, str);
+            free(str);
+        }
+        break;
+    case JSON_PRIMITIVE_TYPE_REAL:
+        {
+            char *str = StringFromDouble(JsonPrimitiveGetAsReal(primitive));
+            RlistAppendScalar(list, str);
+            free(str);
+        }
+        break;
+    case JSON_PRIMITIVE_TYPE_STRING:
+        RlistAppendScalar(list, JsonPrimitiveGetAsString(primitive));
+        break;
 
+    case JSON_PRIMITIVE_TYPE_NULL:
+        break;
+    }
+}
 Rlist *ContainerToRlist(const JsonElement *container)
 {
     Rlist *list = NULL;
@@ -580,6 +661,7 @@ Rlist *ContainerToRlist(const JsonElement *container)
     return list;
 }
 
+#if 0
 struct PromiseIterator_
 {
     size_t idx;                                /* current iteration index */
