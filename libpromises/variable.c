@@ -97,7 +97,15 @@ void VariableTableDestroy(VariableTable *table)
 
 Variable *VariableTableGet(const VariableTable *table, const VarRef *ref)
 {
-    return VarMapGet(table->vars, ref);
+    Variable *v = VarMapGet(table->vars, ref);
+
+    char *s = VarRefToString(ref, true);
+    Log(LOG_LEVEL_DEBUG, "VariableTableGet(%s): %s",
+        s ? s : "NULL",
+        v ? (v->rval.type==RVAL_TYPE_SCALAR?(char*)v->rval.item:"found") : "NOT FOUND");
+    free(s);
+
+    return v;
 }
 
 bool VariableTableRemove(VariableTable *table, const VarRef *ref)
@@ -132,7 +140,9 @@ bool VariableTablePut(VariableTable *table, const VarRef *ref,
 {
     assert(VarRefIsQualified(ref));
 
-    Log(LOG_LEVEL_DEBUG, "VariableTablePut(%s)", ref->lval);
+    Log(LOG_LEVEL_DEBUG, "VariableTablePut(%s)%s%s", ref->lval,
+        type == CF_DATA_TYPE_STRING ? " = " : "",
+        type == CF_DATA_TYPE_STRING ? RvalScalarValue(*rval) : "");
 
     Variable *var = VariableNew(VarRefCopy(ref), RvalCopy(*rval), type,
                                 StringSetFromString(tags, ','), promise);

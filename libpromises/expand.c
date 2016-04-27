@@ -43,7 +43,6 @@
 #include <conversion.h>
 #include <verify_classes.h>
 
-#define CF_MAPPEDLIST '#'
 
 #if 0
 static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
@@ -152,8 +151,8 @@ void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bund
     {
         PromiseIteratorPrepare(iterctx, RvalScalarValue(rval));
         /* const char *s = RvalScalarValue(rval); */
-        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), 0, */
-        /*                                 scalars, lists, containers, NULL); */
+        /* ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), */
+        /*                                 0, scalars, lists, containers, NULL); */
         break;
     }
     case RVAL_TYPE_LIST:
@@ -166,13 +165,14 @@ void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bund
 
     case RVAL_TYPE_FNCALL:
     {
-        PromiseIteratorPrepare(iterctx, RvalFnCallValue(rval)->name);
-        /* const char *fn_name = RvalFnCallValue(rval)->name; */
+        const char *fn_name = RvalFnCallValue(rval)->name;
+        PromiseIteratorPrepare(iterctx, fn_name);
         /* ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name), */
         /*                                 0, scalars, lists, containers, NULL); */
 
         /* Check each of the function arguments. */
-        for (const Rlist *rp = RvalFnCallValue(rval)->args; rp; rp = rp->next)
+        for (const Rlist *rp = RvalFnCallValue(rval)->args;
+             rp != NULL;  rp = rp->next)
         {
             MapIteratorsFromRval(ctx, iterctx, bundle, rp->val,
                                  scalars, lists, containers);
@@ -193,24 +193,14 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
 {
     PromiseResult result = PROMISE_RESULT_SKIPPED;
 
-    /* If any of the lists we iterate is null or contains only cf_null
-     * values, then skip the entire promise. */
-    /* if (PromiseIteratorHasNullIterators(iter_ctx)) */
-    /* { */
-    /*     goto cleanup; */
-    /* } */
-
-
-
     /* TODO no need to iterate for non vars/classes promises during
      * pre-eval, i.e. if ActOnPromise is CommonEvalPromise(). */
-    while (true)
+    while (PromiseIteratorNext(iterctx, ctx))
     {
-
-        if (!PromiseIteratorNext(iterctx, ctx))
-        {
-            break;
-        }
+        /* if (!PromiseIteratorNext(iterctx, ctx)) */
+        /* { */
+        /*     break; */
+        /* } */
 
         /*
          * ACTUAL WORK PART 1: lots of hidden stuff in this function.
@@ -243,7 +233,10 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
             NotifyDependantPromises(ctx, pexp, iteration_result);
         }
 
-        /* EVALUATE VARS PROMISES -- TODO WHY, ISN'T ActOnPromise() enough?? */
+        /* EVALUATE VARS PROMISES -- TODO WHY, ISN'T ActOnPromise() enough??
+         * Some tests fail if I remove this. But I can also see vars being
+         * Put() twice, once in ActOnPromise==VerifyVarPromise, and once
+         * here. TODO fix. */
         if (strcmp(pp->parent_promise_type->name, "vars") == 0 ||
             strcmp(pp->parent_promise_type->name, "meta") == 0)
         {
@@ -254,9 +247,6 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
     }
 
   cleanup:
-    PromiseIteratorDestroy(iterctx);
-    EvalContextStackPopFrame(ctx);
-
     return result;
 }
 
@@ -276,26 +266,27 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
      *    (including body inheritance). */
     Promise *pcopy = DeRefCopyPromise(ctx, pp);
 
-//    PromiseIterator *iterctx = PromiseIteratorNew(ctx, pp, lists, containers);
+    EvalContextStackPushPromiseFrame(ctx, pcopy, true);
+
     PromiseIterator *iterctx = PromiseIteratorNew(pcopy);
 
     /* 2. Parse everything for creating iterators over
           slists and containers. */
 
-    MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pp),
+    MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pcopy),
                          (Rval) { pcopy->promiser, RVAL_TYPE_SCALAR },
                          &scalars, &lists, &containers);
 
     if (pcopy->promisee.item != NULL)
     {
-        MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pp), pp->promisee,
+        MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pcopy), pcopy->promisee,
                              &scalars, &lists, &containers);
     }
 
     for (size_t i = 0; i < SeqLength(pcopy->conlist); i++)
     {
         Constraint *cp = SeqAt(pcopy->conlist, i);
-        MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pp), cp->rval,
+        MapIteratorsFromRval(ctx, iterctx, PromiseGetBundle(pcopy), cp->rval,
                              &scalars, &lists, &containers);
     }
 
@@ -307,10 +298,11 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
 //    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), containers);
 
     /* 4. GO! */
-    EvalContextStackPushPromiseFrame(ctx, pcopy, true);         /* TODO where is this popped? */
     PutHandleVariable(ctx, pcopy);
     PromiseResult result = ExpandPromiseAndDo(ctx, iterctx, pcopy, lists, containers, ActOnPromise, param);
 
+    EvalContextStackPopFrame(ctx);
+    PromiseIteratorDestroy(iterctx);
     PromiseDestroy(pcopy);
 
     RlistDestroy(lists);
@@ -322,6 +314,186 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
 
 
 /*********************************************************************/
+
+static void MangleVarRefString(char *ref_str, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        if (ref_str[i] == ':')
+        {
+            ref_str[i] = CF_MANGLED_NS;
+        }
+        else if (ref_str[i] == '.')
+        {
+            ref_str[i] = CF_MANGLED_SCOPE;
+        }
+        else if (ref_str[i] == '\0' || ref_str[i] == '[')
+        {
+            return;
+        }
+    }
+}
+
+static void DeMangleVarRefString(char *ref_str, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        if (ref_str[i] == CF_MANGLED_NS)
+        {
+            ref_str[i] = ':';
+        }
+        else if (ref_str[i] == CF_MANGLED_SCOPE)
+        {
+            ref_str[i] = '.';
+        }
+        else if (ref_str[i] == '[')
+        {
+            return;
+        }
+    }
+}
+
+/**
+ * @brief Like @c StringAppend, but replace characters @c '*' and @c '#' with their visible counterparts.
+ * @param buffer Buffer to be used.
+ * @param str    Constant string to append
+ * @param n Total size of dst buffer. The string will be truncated if this is exceeded.
+ */
+bool StringAppendPromise(char *dst, const char *src, size_t n)
+{
+    int i, j;
+    n--;
+    for (i = 0; i < n && dst[i]; i++)
+    {
+    }
+    for (j = 0; i < n && src[j]; i++, j++)
+    {
+        const char ch = src[j];
+        switch (ch)
+        {
+        case CF_MANGLED_NS:
+            dst[i] = ':';
+            break;
+
+        case CF_MANGLED_SCOPE:
+            dst[i] = '.';
+            break;
+
+        default:
+            dst[i] = ch;
+            break;
+        }
+    }
+    dst[i] = '\0';
+    return (i < n || !src[j]);
+}
+
+/**
+ * @brief Like @c BufferAppendPromiseStr, but if @c str contains newlines
+ *   and is longer than 2*N+3, then only copy an abbreviated version
+ *   consisting of the first and last N characters, separated by @c `...`
+ * @param buffer Buffer to be used.
+ * @param str    Constant string to append
+ * @param n Total size of dst buffer. The string will be truncated if this is exceeded.
+ * @param max_fragment Max. length of initial/final segment of @c str to keep
+ * @note 2*max_fragment+3 is the maximum length of the appended string (excl. terminating NULL)
+ *
+ */
+bool StringAppendAbbreviatedPromise(char *dst, const char *src, size_t n, const size_t max_fragment)
+{
+    /* check if `src` contains a new line (may happen for "insert_lines") */
+    const char *const nl = strchr(src, '\n');
+    if (NULL == nl)
+    {
+        return StringAppendPromise(dst, src, n);
+    }
+    else
+    {
+        /* `src` contains a newline: abbreviate it by taking the first and last few characters */
+        static const char sep[] = "...";
+        char abbr[sizeof(sep) + 2 * max_fragment];
+        const int head = (nl > src + max_fragment) ? max_fragment : (nl - src);
+        const char * last_line = strrchr(src, '\n') + 1;
+        assert(last_line); /* not max_fragmentULL, we know we have at least one '\n' */
+        const int tail = strlen(last_line);
+        if (tail > max_fragment)
+        {
+            last_line += tail - max_fragment;
+        }
+        memcpy(abbr, src, head);
+        strcpy(abbr + head, sep);
+        strcat(abbr, last_line);
+        return StringAppendPromise(dst, abbr, n);
+    }
+}
+
+/**
+ * @brief Concatenate string @c str to @c buf, replacing
+ *   characters @c '*' and @c '#' with their visible counterparts.
+ * @param buffer Buffer to be used.
+ * @param str    Constant string to append
+ */
+void BufferAppendPromiseStr(Buffer *buf, const char *promiser)
+{
+    for (const char *ch = promiser; *ch != '\0'; ch++)
+    {
+        switch (*ch)
+        {
+        case CF_MANGLED_NS:
+            BufferAppendChar(buf, ':');
+            break;
+
+        case CF_MANGLED_SCOPE:
+            BufferAppendChar(buf, '.');
+            break;
+
+        default:
+            BufferAppendChar(buf, *ch);
+            break;
+        }
+    }
+}
+
+/**
+ * @brief Like @c BufferAppendPromiseStr, but if @c str contains newlines
+ *   and is longer than 2*N+3, then only copy an abbreviated version
+ *   consisting of the first and last N characters, separated by @c `...`
+ * @param buffer Buffer to be used.
+ * @param str    Constant string to append
+ * @param N      Max. length of initial/final segment of @c str to keep
+ * @note 2*N+3 is the maximum length of the appended string (excl. terminating NULL)
+ *
+ */
+void BufferAppendAbbreviatedStr(Buffer *buf, const char *promiser, const int N)
+{
+    /* check if `promiser` contains a new line (may happen for "insert_lines") */
+    const char *const nl = strchr(promiser, '\n');
+    if (NULL == nl)
+    {
+        BufferAppendPromiseStr(buf, promiser);
+    }
+    else
+    {
+        /* `promiser` contains a newline: abbreviate it by taking the first and last few characters */
+        static const char sep[] = "...";
+        char abbr[sizeof(sep) + 2 * N];
+        const int head = (nl > promiser + N) ? N : (nl - promiser);
+        const char * last_line = strrchr(promiser, '\n') + 1;
+        assert(last_line); /* not NULL, we know we have at least one '\n' */
+        const int tail = strlen(last_line);
+        if (tail > N)
+        {
+            last_line += tail - N;
+        }
+        memcpy(abbr, promiser, head);
+        strcpy(abbr + head, sep);
+        strcat(abbr, last_line);
+        BufferAppendPromiseStr(buf, abbr);
+    }
+}
+
+
+
 
 #if 0
 static void RlistConcatInto(Rlist **dest,
@@ -341,44 +513,6 @@ static void RlistConcatInto(Rlist **dest,
     if (count == 0)
     {
         RlistAppendScalarIdemp(dest, extension);
-    }
-}
-
-static void MangleVarRefString(char *ref_str, size_t len)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        if (ref_str[i] == ':')
-        {
-            ref_str[i] = '*';
-        }
-        else if (ref_str[i] == '.')
-        {
-            ref_str[i] = '#';
-        }
-        else if (ref_str[i] == '\0' || ref_str[i] == '[')
-        {
-            return;
-        }
-    }
-}
-
-static void DeMangleVarRefString(char *ref_str, size_t len)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        if (ref_str[i] == '*')
-        {
-            ref_str[i] = ':';
-        }
-        else if (ref_str[i] == '#')
-        {
-            ref_str[i] = '.';
-        }
-        else if (ref_str[i] == '[')
-        {
-            return;
-        }
     }
 }
 
@@ -579,7 +713,7 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                     char *dotpos = strchr(substring, '.');
                     if (dotpos)
                     {
-                        *dotpos = CF_MAPPEDLIST;    // replace '.' with '#'
+                        *dotpos = CF_MANGLED_SCOPE;    // replace '.' with '#'
                     }
 
                     if (strchr(BufferData(value), ':'))
@@ -587,7 +721,7 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                         char *colonpos = strchr(substring, ':');
                         if (colonpos)
                         {
-                            *colonpos = '*';
+                            *colonpos = CF_MANGLED_NS;
                         }
                     }
                 }
@@ -829,13 +963,14 @@ char *ExpandScalar(const EvalContext *ctx, const char *ns, const char *scope,
                 break;
 
             default:
+#if 0
                 // Discover if we are about to evaluate a promise with a cf_null-list
                 if (   (value != NULL &&
                         strcmp(RlistScalarValue(value), CF_NULL_VALUE) == 0)
                 // or a list from a foreign bundle that can't be expanded because it is a null list there
                     || (type == CF_DATA_TYPE_NONE &&
                         value == NULL &&
-                        strchr(BufferData(current_item), CF_MAPPEDLIST) != NULL)
+                        strchr(BufferData(current_item), CF_MANGLED_SCOPE) != NULL)
                     )
                 {
                     BufferDestroy(current_item);
@@ -846,6 +981,7 @@ char *ExpandScalar(const EvalContext *ctx, const char *ns, const char *scope,
 
                     return out_belongs_to_us ? BufferClose(out) : BufferGet(out);
                 }
+#endif
                 break;
             }
         }
@@ -989,10 +1125,10 @@ static void CopyLocalizedReferencesToBundleScope(EvalContext *ctx,
 
         /* If mangled, get the value/type of the demangled so that you can put
          * the same value/type to the mangled one. */
-        if (strchr(mangled, CF_MAPPEDLIST))
+        if (strchr(mangled, CF_MANGLED_SCOPE))
         {
             char *demangled = xstrdup(mangled);
-//            DeMangleVarRefString(demangled, strlen(demangled));
+            DeMangleVarRefString(demangled, strlen(demangled));
 
             Log(LOG_LEVEL_DEBUG, "                 '%s' demangle -> '%s'",
                 mangled, demangled);

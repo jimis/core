@@ -74,8 +74,8 @@ void VarRefDestroy_untyped(void   *ref);
 
 char *VarRefToString(const VarRef *ref, bool qualified);
 
-char *VarRefMangle(const VarRef *ref);
-VarRef *VarRefDeMangle(const char *mangled_var_ref);
+//char *VarRefMangle(const VarRef *ref);
+//VarRef *VarRefDeMangle(const char *mangled_var_ref);
 
 void VarRefSetMeta(VarRef *ref, bool enabled);
 

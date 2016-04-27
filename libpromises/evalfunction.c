@@ -3037,7 +3037,8 @@ JsonElement *DefaultTemplateData(const EvalContext *ctx, const char *wantbundle)
             if (NULL != scope_obj)
             {
                 char *lval_key = VarRefToString(var->ref, false);
-                if (NULL == strchr(lval_key, '#')) // don't collect mangled refs
+                // don't collect mangled refs
+                if (strchr(lval_key, CF_MANGLED_SCOPE) == NULL)
                 {
                     JsonObjectAppendElement(scope_obj, lval_key, RvalToJson(var->rval));
                 }

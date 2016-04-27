@@ -451,7 +451,8 @@ char *VarRefMangle(const VarRef *ref)
 
 VarRef *VarRefDeMangle(const char *mangled_var_ref)
 {
-    return VarRefParseFromNamespaceAndScope(mangled_var_ref, NULL, NULL, '*', '#');
+    return VarRefParseFromNamespaceAndScope(mangled_var_ref, NULL, NULL,
+                                            CF_MANGLED_NS, CF_MANGLED_SCOPE);
 }
 
 static bool VarRefIsMeta(VarRef *ref)

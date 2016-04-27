@@ -29,7 +29,7 @@
 #include <syntax.h>
 #include <item_lib.h>
 #include <ornaments.h>
-#include <expand.h>
+#include <expand.h>                           /* BufferAppendAbbreviatedStr */
 #include <matching.h>
 #include <string_lib.h>
 #include <misc_lib.h>
@@ -1138,6 +1138,8 @@ static void EvalContextStackPushFrame(EvalContext *ctx, StackFrame *frame)
 
     assert(!frame->path);
     frame->path = EvalContextStackPath(ctx);
+
+    Log(LOG_LEVEL_DEBUG, "PUSHED FRAME (type %d)", frame->type);
 }
 
 void EvalContextStackPushBundleFrame(EvalContext *ctx, const Bundle *owner, const Rlist *args, bool inherits_previous)
@@ -1338,6 +1340,8 @@ void EvalContextStackPopFrame(EvalContext *ctx)
             LoggingPrivSetLevels(CalculateLogLevel(pp), CalculateReportLevel(pp));
         }
     }
+
+    Log(LOG_LEVEL_DEBUG, "POPPED FRAME (type %d)", last_frame_type);
 }
 
 bool EvalContextClassRemove(EvalContext *ctx, const char *ns, const char *name)
@@ -1920,13 +1924,15 @@ static Variable *VariableResolve(const EvalContext *ctx, const VarRef *ref)
 
 const void *EvalContextVariableGet(const EvalContext *ctx, const VarRef *ref, DataType *type_out)
 {
-//    char *s = VarRefToString(ref, true); Log(LOG_LEVEL_DEBUG, "EvalContextVariableGet(): %s", s); free(s);
     Variable *var = VariableResolve(ctx, ref);
     if (var)
     {
-        if (var->ref->num_indices == 0 && ref->num_indices > 0 && var->type == CF_DATA_TYPE_CONTAINER)
+        if (var->ref->num_indices == 0    &&
+                 ref->num_indices > 0     &&
+            var->type == CF_DATA_TYPE_CONTAINER)
         {
-            JsonElement *child = JsonSelect(RvalContainerValue(var->rval), ref->num_indices, ref->indices);
+            JsonElement *child = JsonSelect(RvalContainerValue(var->rval),
+                                            ref->num_indices, ref->indices);
             if (child)
             {
                 if (type_out)
@@ -1948,12 +1954,13 @@ const void *EvalContextVariableGet(const EvalContext *ctx, const VarRef *ref, Da
     else if (!VarRefIsQualified(ref))
     {
         /*
-         * FALLBACK: Because VariableResolve currently does not walk the stack (rather, it looks at
-         * only the top frame), we do an explicit retry here to qualify an unqualified reference to
-         * the current bundle.
+         * FALLBACK: Because VariableResolve currently does not walk the stack
+         * (rather, it looks at only the top frame), we do an explicit retry
+         * here to qualify an unqualified reference to the current bundle.
          *
-         * This is overly complicated, and will go away as soon as VariableResolve can walk the stack
-         * (which is pending rework in variable iteration).
+         * This is overly complicated, and will go away as soon as
+         * VariableResolve can walk the stack (which is pending rework in
+         * variable iteration).
          */
         const Bundle *bp = EvalContextStackCurrentBundle(ctx);
         if (bp)

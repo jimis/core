@@ -121,6 +121,12 @@
 
 #define CF_NS ':'   // namespace character separator
 
+/* Mangled namespace and scope characters, in order for the iteration engine
+ * to VariablePut() to THIS scope single elements of namespaced iterables
+ * (slists/containers). See expand.c and iteration.c. */
+#define CF_MANGLED_NS    '*'
+#define CF_MANGLED_SCOPE '#'
+
 /*****************************************************************************/
 
 /* Auditing key */

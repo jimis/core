@@ -79,12 +79,31 @@ Wheel *WheelNew(const char *varname, size_t varname_len)
         .varname_unexp = xstrndup(varname, varname_len),
 //        .varname_exp   = BufferNewWithCapacity(strlen(varname) * 2),
         .varname_exp   = NULL,
-        .values        = SeqNew(4, NULL),
+        .values        = NULL,
         .vartype       = -1,
         .iter_index    = 0
     };
 
     return xmemdup(&new_wheel, sizeof(new_wheel));
+}
+
+static void WheelValuesSeqDestroy(Wheel *w)
+{
+    if (w->values != NULL)
+    {
+        /* Only if it is a container we need to free the values, since it was
+         * trasformed to a Seq of strings. */
+        if (w->vartype == CF_DATA_TYPE_CONTAINER)
+        {
+            size_t values_len = SeqLength(w->values);
+            for (size_t i = 0; i < values_len; i++)
+            {
+                char *value = SeqAt(w->values, i);
+                free(value);
+            }
+        }
+        SeqDestroy(w->values);
+    }
 }
 
 void WheelDestroy(void *wheel)
@@ -93,20 +112,7 @@ void WheelDestroy(void *wheel)
     free(w->varname_unexp);
 //    BufferDestroy(w->varname_exp);
     free(w->varname_exp);
-
-    /* Only if it is a container we need to free, since it was trasformed
-     * to a Seq of strings. */
-    if (w->vartype == CF_DATA_TYPE_CONTAINER)
-    {
-        size_t values_len = SeqLength(w->values);
-        for (size_t i = 0; i < values_len; i++)
-        {
-            char *value = SeqAt(w->values, i);
-            free(value);
-        }
-    }
-    SeqDestroy(w->values);
-
+    WheelValuesSeqDestroy(w);
     free(w);
 }
 
@@ -294,7 +300,8 @@ static bool WheelIncrement(PromiseIterator *iterctx, size_t i)
     Wheel *wheel = SeqAt(iterctx->wheels, i);
 
     wheel->iter_index++;
-    if (wheel->iter_index < SeqLength(wheel->values))
+    if (wheel->values != NULL &&
+        wheel->iter_index < SeqLength(wheel->values))
     {
         return true;
     }
@@ -334,11 +341,12 @@ const void *IterVariableGet(const PromiseIterator *iterctx,
                             const char *varname, DataType *type)
 {
     VarRef *ref = VarRefParseFromBundle(varname,
-                                              PromiseGetBundle(iterctx->pp));
+                                        PromiseGetBundle(iterctx->pp));
+//    VarRef *ref = VarRefParse(varname);
     const void *value = EvalContextVariableGet(evalctx, ref, type);
     if (value == NULL)                                      /* TODO remove? */
     {
-        ProgrammingError("Couldn't find extracted variable: %s", varname);
+//       ProgrammingError("Couldn't find extracted variable: %s", varname);
     }
 
     VarRefDestroy(ref);
@@ -457,7 +465,6 @@ void IterVariablePut(const PromiseIterator *iterctx,
 
 bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
 {
-    Log(LOG_LEVEL_DEBUG, "PromiseIteratorNext(): count=%zu", iterctx->count);
     size_t wheels_num = SeqLength(iterctx->wheels);
 
     size_t i;                     /* which wheel we're currently working on */
@@ -502,9 +509,15 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
     {
         /* If no iterations have happened yet, we initialise all wheels. */
         i = (size_t) -1;               /* increments to 0 in the loop start */
+
+        Log(LOG_LEVEL_DEBUG,
+            "STARTING ITERATION ENGINE, ENTERING WARP SPEED");
     }
 
     /* TODO Run it also once when initialising, to reset everything. */
+    Log(LOG_LEVEL_DEBUG,
+        "PromiseIteratorNext(): count=%zu wheels_num=%zu current_wheel=%zd",
+        iterctx->count, wheels_num, (ssize_t) i);
 
     /*
      * For each of the subsequent wheels (if any):
@@ -536,11 +549,16 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
                                            PromiseGetNamespace(iterctx->pp),
                                            "this",
                                            wheel->varname_unexp, tmpbuf);
+        Log(LOG_LEVEL_DEBUG,
+            "PromiseIteratorNext(): Expanded '%s' to '%s'",
+            wheel->varname_unexp, varname);
 
         /* No need to do anything if the variable expands to the same value as
          * before (because possibly it doesn't have internal expansions). */
-        /* NOT TRUE, THE FRAME HAS BEEN POPPED! TODO ADD THE SIZE-ZERO
-         * VARIABLES BEFORE ITERATION STARTS! */
+        /* NOT TRUE, we still have to reset the counter if it's an iterable
+         * variable. */
+        /* NOT TRUE, THE FRAME HAS BEEN POPPED! Todo add the zero-sized
+         * (non-iterable) variables before iteration starts. */
         /* NULL if it's the first iteration. */
         if (wheel->varname_exp == NULL
             || strcmp(varname, wheel->varname_exp) != 0)
@@ -555,13 +573,14 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             DataType t;
             const void *value = IterVariableGet(iterctx, evalctx, varname, &t);
 
+            WheelValuesSeqDestroy(wheel);           /* free previous values */
+
             /* Set wheel values and size according to variable type. */
             if (t == CF_DATA_TYPE_STRING_LIST ||
                 t == CF_DATA_TYPE_INT_LIST    ||
                 t == CF_DATA_TYPE_REAL_LIST   ||
                 t == CF_DATA_TYPE_CONTAINER)
             {
-                /* TODO SeqDestroy previous values, freeing the container ones. */
                 wheel->values = IterableToSeq(value, t);
                 wheel->vartype = t;
 
@@ -571,9 +590,23 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             }
             else
             {
-                /* No need to VariablePut() this variable,
-                 * the variable already exists in the EvalContext. */
-                wheel->values = NULL;
+                /* No need to VariablePut() the first element of this
+                 * variable, since the variable is not an iterable and it
+                 * already exists in the EvalContext. */
+                assert(wheel->values == NULL);
+            }
+        }
+        else
+        {
+            /* The variable name expanded to the same name, so the value is
+             * the same and wheel->values is correct. So if it's an iterable,
+             * we VariablePut() the first element to the EvalContext. */
+            if (wheel->values != NULL)
+            {
+                /* Put the first value of the iterable. */
+                IterListElementVariablePut(evalctx,
+                                           wheel->varname_exp, wheel->vartype,
+                                           SeqAt(wheel->values, 0));
             }
         }
     }
