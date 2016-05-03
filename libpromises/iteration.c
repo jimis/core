@@ -148,17 +148,19 @@ size_t PromiseIteratorIndex(const PromiseIterator *iter_ctx)
 
 
 /**
- * Returns pointer to "$(" or "${" in the string. If not found returns a
- * pointer to the terminating '\0' of the string.
+ * Returns offset to "$(" or "${" in the string. If not found, then the offset
+ * points to the terminating '\0' of the string.
  */
-static const char *FindDollarParen_nul(const char *s)
+static size_t FindDollarParen(const char *s)
 {
-    while (s[0] != '\0' &&
-           ! (s[0] == '$' && (s[1] == '(' || s[1] == '{')))
+    size_t i = 0;
+
+    while (s[i] != '\0' &&
+           ! (s[i] == '$' && (s[i+1] == '(' || s[i+1] == '{')))
     {
-        s++;
+        i++;
     }
-    return s;
+    return i;
 }
 
 static char opposite(char c)
@@ -172,20 +174,121 @@ static char opposite(char c)
     return 0;
 }
 
+static bool IsMangled(const char *s)
+{
+    size_t dollar_paren = FindDollarParen(s);
+    size_t bracket      = strchrnul(s, '[') - s;
+    size_t upto = MIN(dollar_paren, bracket);
+    size_t mangled_ns     = strchrnul(s, CF_MANGLED_NS)    - s;
+    size_t mangled_scope  = strchrnul(s, CF_MANGLED_SCOPE) - s;
+
+    if (mangled_ns    < upto ||
+        mangled_scope < upto)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+static void MangleVarRefString(char *ref_str, size_t len)
+{
+//    printf("MangleVarRefString: %.*s\n", (int) len, ref_str);
+
+    /* Mangle up to '$(', '${', '[', '\0', whichever comes first. */
+    size_t dollar_paren = FindDollarParen(ref_str);
+    size_t upto         = MIN(len, dollar_paren);
+    char *bracket       = memchr(ref_str, '[', upto);
+    if (bracket != NULL)
+    {
+        upto = bracket - ref_str;
+    }
+
+    char *ns = memchr(ref_str, ':', upto);
+    char *ref_str2 = ref_str;
+    if (ns != NULL)
+    {
+        *ns      = CF_MANGLED_NS;
+        ref_str2 =  ns + 1;
+        upto    -= (ns + 1 - ref_str);
+        assert(upto >= 0);
+    }
+
+    bool mangled_scope = false;
+    char *scope = memchr(ref_str2, '.', upto);
+    if (scope != NULL         &&
+        scope - ref_str2 != 4 &&
+        strncmp(ref_str2, "this", 4) != 0)
+    {
+        *scope = CF_MANGLED_SCOPE;
+        mangled_scope = true;
+    }
+
+    if (mangled_scope || ns != NULL)
+    {
+        Log(LOG_LEVEL_DEBUG,
+            "Mangled namespaced/scoped variable for iterating over it: %.*s",
+            (int) len, ref_str);
+    }
+}
+
+#if 0
+static void DeMangleVarRefString(char *ref_str, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        if (ref_str[i] == CF_MANGLED_NS)
+        {
+            ref_str[i] = ':';
+        }
+        else if (ref_str[i] == CF_MANGLED_SCOPE)
+        {
+            ref_str[i] = '.';
+        }
+        else if (ref_str[i] == '[')
+        {
+            return;
+        }
+    }
+}
+#endif
+
+bool IsIterable(DataType t)
+{
+    if (t == CF_DATA_TYPE_STRING_LIST ||
+        t == CF_DATA_TYPE_INT_LIST    ||
+        t == CF_DATA_TYPE_REAL_LIST   ||
+        t == CF_DATA_TYPE_CONTAINER)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 /**
  * Recursive function that adds wheels to the iteration engine, according to
  * the variable (and possibly its inner variables) in #s.
+ *
+ * Another important thing it does, is *modify* the string #s, mangling all
+ * scoped or namespaces variable names.
+ *
+ * @TODO mangle only the iterables.
  *
  * @param s is the start of a variable, right after "$(" or "${".
  * @param c is the character after '$', i.e. must be either '(' or '{'.
  * @return pointer to the closing parenthesis or brace of the variable, or
  *         if not found, returns a pointer to terminating '\0' of #s.
  */
-static const char *ProcessVar(PromiseIterator *iterctx, const char *s, char c)
+static char *ProcessVar(PromiseIterator *iterctx, char *s, char c)
 {
     char closing_paren   = opposite(c);
-    const char *s_end    = strchrnul(s, closing_paren);
-    const char *next_var = FindDollarParen_nul(s);
+    char *s_end    = strchrnul(s, closing_paren);
+    char *next_var = s + FindDollarParen(s);
     size_t dependencies  = 0;
 
     while (next_var < s_end)             /* does it have nested variables?  */
@@ -196,65 +299,71 @@ static const char *ProcessVar(PromiseIterator *iterctx, const char *s, char c)
         assert(next_var[0] != '\0');
         assert(next_var[1] != '\0');
 
-        const char *subvar_end = ProcessVar(iterctx,
-                                            &next_var[2], next_var[1]);
+        char *subvar_end = ProcessVar(iterctx,
+                                      &next_var[2], next_var[1]);
 
         /* Was there unbalanced paren for the inner expansion? */
         if (*subvar_end == '\0')
         {
             /* Despite unclosed parenthesis for the inner expansion,
              * the outer variable might close with a brace, or not. */
-            next_var = FindDollarParen_nul(s_end);
+            next_var = s_end + FindDollarParen(s_end);
             /* s_end is already correct */
         }
         else                          /* inner variable processed correctly */
         {
-            /* TODO? check how they are expanded today. */
-            /* wheel->deps[dependencies].start = &next_var[2] - s; */
-            /* wheel->deps[dependencies].end   = subvar_end   - s; */
             /* This variable depends on inner expansions. */
             dependencies++;
-            /* We are sure subvar_end[1] is not out of bounds. */
-            s_end    = strchrnul(&subvar_end[1], closing_paren);
-            next_var = FindDollarParen_nul(&subvar_end[1]);
+            /* We are sure (subvar_end+1) is not out of bounds. */
+            s_end    = strchrnul(subvar_end + 1, closing_paren);
+            next_var = subvar_end + 1 + FindDollarParen(subvar_end + 1);
         }
     }
 
-    if (*s_end != '\0')
+    if (*s_end == '\0')
     {
-        /* If identical variable is already inserted, it means that it has
-         * been seen before and has been inserted together with all
-         * dependencies; skip. */
+        Log(LOG_LEVEL_ERR,
+            "No closing '%c' found!", opposite(c)); /* TODO VERBOSE? */
+        return s_end;
+    }
 
-        Wheel *new_wheel = WheelNew(s, s_end - s);
+    const size_t s_len = s_end - s;
 
-        bool same_var_found = SeqLookup(iterctx->wheels, new_wheel,
-                                        WheelCompareUnexpanded)  !=  NULL;
-        if (!same_var_found)
-        {
-            /* If this variable is dependent on other variables, we've already
-             * appended the wheels of the dependencies during the recursive
-             * calls. Or it happens and this is an independent variable. So
-             * APPEND the wheel for this variable. */
-            SeqAppend(iterctx->wheels, new_wheel);
-            Log(LOG_LEVEL_DEBUG,
-                "Added iteration wheel for variable: %s",
-                new_wheel->varname_unexp);
-        }
-        else
-        {
-            Log(LOG_LEVEL_DEBUG,
-                "Skipped adding iteration wheel for already existing variable: %s",
-                new_wheel->varname_unexp);
-            WheelDestroy(new_wheel);
-        }
+    /* Change the variable name in order to mangle namespaces and scopes. */
+    /* TODO VariableGet() and mangle only if it's iterable. Also add a wheel
+     * again only if it's iterable. */
+    MangleVarRefString(s, s_len);
+
+    Wheel *new_wheel = WheelNew(s, s_len);
+
+    /* If identical variable is already inserted, it means that it has
+     * been seen before and has been inserted together with all
+     * dependencies; skip. */
+    /* It can happen if variables exist twice in a string, for example:
+       "$(i) blah $(A[$(i)])" has i variable twice. */
+
+    bool same_var_found = SeqLookup(iterctx->wheels, new_wheel,
+                                    WheelCompareUnexpanded)  !=  NULL;
+    if (same_var_found)
+    {
+        Log(LOG_LEVEL_DEBUG,
+            "Skipped adding iteration wheel for already existing variable: %s",
+            new_wheel->varname_unexp);
+        WheelDestroy(new_wheel);
     }
     else
     {
-        Log(LOG_LEVEL_ERR, "No closing '%c' found!", opposite(c)); /* TODO VERBOSE? */
+        /* If this variable is dependent on other variables, we've already
+         * appended the wheels of the dependencies during the recursive
+         * calls. Or it happens and this is an independent variable. So
+         * APPEND the wheel for this variable. */
+        SeqAppend(iterctx->wheels, new_wheel);
+        Log(LOG_LEVEL_DEBUG,
+            "Added iteration wheel for variable: %s",
+            new_wheel->varname_unexp);
     }
 
-    assert(*s_end == closing_paren  ||  *s_end == '\0');
+    assert(*s_end == closing_paren);
     return s_end;
 }
 
@@ -277,10 +386,10 @@ static const char *ProcessVar(PromiseIterator *iterctx, const char *s, char c)
  */
 void PromiseIteratorPrepare(PromiseIterator *iterctx,
 //                             EvalContext *eval_ctx,
-                            const char *s)
+                            char *s)
 {
     Log(LOG_LEVEL_DEBUG, "PromiseIteratorPrepare(\"%s\")", s);
-    const char *var_start = FindDollarParen_nul(s);
+    char *var_start = s + FindDollarParen(s);
 
     while (*var_start != '\0')
     {
@@ -289,9 +398,9 @@ void PromiseIteratorPrepare(PromiseIterator *iterctx,
 
         assert(paren_or_brace == '(' || paren_or_brace == '{');
 
-        const char *var_end = ProcessVar(iterctx, var_start, paren_or_brace);
+        char *var_end = ProcessVar(iterctx, var_start, paren_or_brace);
 
-        var_start = FindDollarParen_nul(&var_end[1]);
+        var_start = var_end + 1 + FindDollarParen(var_end + 1);
     }
 }
 
@@ -335,13 +444,23 @@ static void IterListElementVariablePut(EvalContext *evalctx,
 }
 
 
-/* Get a variable value and type */
+/**
+ * Get a variable value and type. Since we are in iteration context, the
+ * scoped or namespaced variable names may be mangled, so we have to demangle
+ * them before looking them up.
+ *
+ * @TODO what if looking them up must find the mangled reference?
+ */
 const void *IterVariableGet(const PromiseIterator *iterctx,
                             const EvalContext *evalctx,
                             const char *varname, DataType *type)
 {
-    VarRef *ref = VarRefParseFromBundle(varname,
-                                        PromiseGetBundle(iterctx->pp));
+//    VarRef *ref = VarRefParseFromBundle(varname,
+//                                        PromiseGetBundle(iterctx->pp));
+    const Bundle *bundle = PromiseGetBundle(iterctx->pp);
+    VarRef *ref =
+        VarRefParseFromNamespaceAndScope(varname, bundle->ns, bundle->name,
+                                         CF_MANGLED_NS, CF_MANGLED_SCOPE);
 //    VarRef *ref = VarRefParse(varname);
     const void *value = EvalContextVariableGet(evalctx, ref, type);
     if (value == NULL)                                      /* TODO remove? */
@@ -413,7 +532,7 @@ Seq *ContainerToSeq(const JsonElement *container)
 }
 /* TODO SeqFinalise() to save space? */
 
-Seq *RlistToSeq(const Rlist *p, DataType t)
+Seq *RlistToSeq(const Rlist *p)
 {
     Seq *seq = SeqNew(5, NULL);
 
@@ -421,7 +540,7 @@ Seq *RlistToSeq(const Rlist *p, DataType t)
     while(rlist != NULL)
     {
         Rval val = rlist->val;
-//TODO        assert(val == RVAL_TYPE_SCALAR);
+//TODO  what if val is int or float? Does it work as it is?
         SeqAppend(seq, val.item);
         rlist = rlist->next;
     }
@@ -441,7 +560,7 @@ Seq *IterableToSeq(const void *v, DataType t)
     case CF_DATA_TYPE_REAL_LIST:
         /* All lists are stored as Rlist internally. */
         assert(DataTypeToRvalType(t) == RVAL_TYPE_LIST);
-        return RlistToSeq(v, t);
+        return RlistToSeq(v);
 
     default:
         ProgrammingError("IterableToSeq() got non-iterable type: %d", t);
@@ -520,7 +639,8 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
         iterctx->count, wheels_num, (ssize_t) i);
 
     /*
-     * For each of the subsequent wheels (if any):
+     * For each of the subsequent wheels (if any, or all of them on the first
+     * iteraration that i==(size_t)-1):
      *
      * 2. varname_exp = expand the variable name
      *    - if it's same with previous varname_exp, no need to Put()?
@@ -534,6 +654,9 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
 
     /* Buffer to store the expanded wheel variable name, for each wheel. */
     Buffer *tmpbuf = BufferNew();
+
+    /* TODO I could replace this loop with PutAllWheelVariables() after I've
+     * set all the wheel counters correct. */
     for (i = i + 1; i < wheels_num; i++)
     {
         Wheel *wheel = SeqAt(iterctx->wheels, i);
@@ -541,6 +664,10 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
 
         /* Reset wheel in order to re-iterate over all combinations. */
         wheel->iter_index = 0;
+
+// TODO at this point, in the first iteration that we set up all wheels,
+// const#dirsep has not been added to THIS scope. WHY?
+// -->  As expected, because it doesn't depend on previous wheels.
 
         /* The wheel variable may depend on previous wheels, for example
          * "B_$(k)_$(v)" is dependent on variables "k" and "v", which are
@@ -566,8 +693,8 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             free(wheel->varname_exp);
             wheel->varname_exp = xstrdup(varname);
 
-            /* After expanding the variable, we have to lookup its value, and
-               set the size of the wheel if it's an slist or container. */
+            /* After expanding the variable name, we have to lookup its value,
+               and set the size of the wheel if it's an slist or container. */
             /* TODO what if after expansion the wheel is still dependent, i.e. the
              * expansion leads to some other expansion? Maybe we should loop here? */
             DataType t;
@@ -576,10 +703,7 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             WheelValuesSeqDestroy(wheel);           /* free previous values */
 
             /* Set wheel values and size according to variable type. */
-            if (t == CF_DATA_TYPE_STRING_LIST ||
-                t == CF_DATA_TYPE_INT_LIST    ||
-                t == CF_DATA_TYPE_REAL_LIST   ||
-                t == CF_DATA_TYPE_CONTAINER)
+            if (IsIterable(t))
             {
                 wheel->values = IterableToSeq(value, t);
                 wheel->vartype = t;
@@ -587,6 +711,15 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
                 /* Put the first value of the iterable. */
                 IterListElementVariablePut(evalctx, varname, t,
                                            SeqAt(wheel->values, 0));
+            }
+            else if (t != CF_DATA_TYPE_NONE && IsMangled(varname))
+            {
+                /* wheel->vartype = t; */
+                /* wheel->values = SeqNew(1, NULL); */
+                /* SeqAppend(wheel->values, &value); */
+                EvalContextVariablePutSpecial(evalctx, SPECIAL_SCOPE_THIS,
+                                              varname, value,
+                                              t, "source=promise_iteration");
             }
             else
             {
@@ -599,8 +732,8 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
         else
         {
             /* The variable name expanded to the same name, so the value is
-             * the same and wheel->values is correct. So if it's an iterable,
-             * we VariablePut() the first element to the EvalContext. */
+             * the same and wheel->values is already correct. So if it's an
+             * iterable, we VariablePut() the first element. */
             if (wheel->values != NULL)
             {
                 /* Put the first value of the iterable. */

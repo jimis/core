@@ -673,8 +673,8 @@ Promise *ExpandDeRefPromise(EvalContext *ctx, const Promise *pp, bool *excluded)
 
         // special constraints ifvarclass and depends_on are evaluated before the rest of the constraints
         if (strcmp(cp->lval, "ifvarclass") == 0 ||
-            strcmp(cp->lval, "if") == 0 ||
-            strcmp(cp->lval, "unless") == 0 ||
+            strcmp(cp->lval, "if")         == 0 ||
+            strcmp(cp->lval, "unless")     == 0 ||
             strcmp(cp->lval, "depends_on") == 0)
         {
             continue;

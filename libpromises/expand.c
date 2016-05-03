@@ -67,7 +67,7 @@ promisee <=> RVAL_TYPE_LIST
 
 Expanding all bodies in the constraint list, we have
 
-lval <=> RVAL_TYPE_LIST|RVAL_TYPE_SCALAR
+lval <=> RVAL_TYPE_LIST | RVAL_TYPE_SCALAR
 
 Now the rule for variable substitution is that any list variable @(name)
 substituted directly for a LIST is not iterated, but dropped into
@@ -77,29 +77,31 @@ equivalent to a re-concatenation of the expanded separate promises)
 Any list variable occurring within a scalar or in place of a scalar
 is assumed to be iterated i.e. $(name).
 
-To expand a promise, we build temporary hash tables. There are two
-stages, to this - one is to create a promise copy including all of the
-body templates and translate the parameters. This requires one round
-of expansion with scopeid "body". Then we use this fully assembled promise
-and expand vars and function calls.
+To expand a promise, we build temporary hash tables. There are two stages:
+
+  1. DeRefCopyPromise(): Create a *promise copy* including all of the body
+     templates and translate the parameters; this requires one round of
+     expansion with scopeid "body".
+
+  2. Then we use this fully assembled promise and expand vars and function
+     calls.
 
 To expand the variables in a promise we need to
 
-   -- first get all strings, also parameterized bodies, which
-      could also be lists
-                                                                     /
-        //  MapIteratorsFromRval("scope",&lol,"ksajd$(one)$(two)...$(three)"); \/
+   -- MapIteratorsFromRval(): first get all strings, also parameterized
+      bodies, which could also be lists
 
-   -- compile an ordered list of variables involved , with types -           /
-      assume all are lists - these are never inside sub-bodies by design,  \/
+   -- compile an ordered list of variables involved , with types -
+      assume all are lists - these are never inside sub-bodies by design,
       so all expansion data are in the promise itself
       can also be variables based on list items - derived like arrays x[i]
 
-   -- Copy the promise to a temporary promise + constraint list, expanding one by one,   /
-      then execute that                                                                \/
+   -- EvalContextStackPushPromiseIterationFrame() -> ExpandDeRefPromise():
+      Copy the promise to a temporary promise + constraint list, expanding
+      one by one, then execute that
 
       -- In a sub-bundle, create a new context and make hashes of the the
-      transferred variables in the temporary context
+         transferred variables in the temporary context
 
    -- bodies cannot contain iterators
 
@@ -108,10 +110,10 @@ To expand the variables in a promise we need to
 
    -- form the outer loops to generate combinations
 
-Note, we map the current context into a fluid context "this" that maps
-every list into a scalar during iteration. Thus "this" never contains
-lists. This presents a problem for absolute references like $(abs.var),
-since these cannot be mapped into "this" without some magic.
+Note, we map the current context into a fluid context "this" that maps every
+list into a scalar during iteration. *Thus "this" never contains lists*. This
+presents a problem for absolute references like $(abs.var), since these cannot
+be mapped into "this" without some magic.
 
 **********************************************************************/
 
@@ -165,13 +167,13 @@ void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bund
 
     case RVAL_TYPE_FNCALL:
     {
-        const char *fn_name = RvalFnCallValue(rval)->name;
+        char *fn_name = RvalFnCallValue(rval)->name;
         PromiseIteratorPrepare(iterctx, fn_name);
         /* ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name), */
         /*                                 0, scalars, lists, containers, NULL); */
 
         /* Check each of the function arguments. */
-        for (const Rlist *rp = RvalFnCallValue(rval)->args;
+        for (Rlist *rp = RvalFnCallValue(rval)->args;
              rp != NULL;  rp = rp->next)
         {
             MapIteratorsFromRval(ctx, iterctx, bundle, rp->val,
@@ -203,13 +205,14 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
         /* } */
 
         /*
-         * ACTUAL WORK PART 1: lots of hidden stuff in this function.
+         * ACTUAL WORK PART 1: Get a (another) copy of the promise. lots of
+         * hidden stuff in this function.
          *
          * Basically it evaluates all constraints.  As a result it evaluates
          * all functions, even if they are not to be used immediately (for
          * example promises that the actuator skips).
          */
-        const Promise *pexp =                       /* expanded promise */
+        const Promise *pexp =                           /* expanded promise */
             EvalContextStackPushPromiseIterationFrame(ctx, iterctx);
         if (pexp == NULL)                       /* is the promise excluded? */
         {
@@ -217,7 +220,8 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
             continue;
         }
 
-        /* Put all wheel variables into the EvalContext. */
+        /* Put all wheel variables into the EvalContext. TOO LATE? Does it
+         * have to happen before ExpandDeRefPromise()? */
 //        PromiseIteratorUpdateVariables(ctx, iter_ctx);
 
         /* ACTUAL WORK PART 2: run the actuator */
@@ -237,12 +241,14 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
          * Some tests fail if I remove this. But I can also see vars being
          * Put() twice, once in ActOnPromise==VerifyVarPromise, and once
          * here. TODO fix. */
-        if (strcmp(pp->parent_promise_type->name, "vars") == 0 ||
-            strcmp(pp->parent_promise_type->name, "meta") == 0)
+        if (strcmp(pexp->parent_promise_type->name, "vars") == 0 ||
+            strcmp(pexp->parent_promise_type->name, "meta") == 0)
         {
             VerifyVarPromise(ctx, pexp, true);
         }
 
+        /* Why do we push/pop an iteration frame, if all iterated variables
+         * are Put() on the previous scope? */
         EvalContextStackPopFrame(ctx);
     }
 
@@ -314,44 +320,6 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
 
 
 /*********************************************************************/
-
-static void MangleVarRefString(char *ref_str, size_t len)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        if (ref_str[i] == ':')
-        {
-            ref_str[i] = CF_MANGLED_NS;
-        }
-        else if (ref_str[i] == '.')
-        {
-            ref_str[i] = CF_MANGLED_SCOPE;
-        }
-        else if (ref_str[i] == '\0' || ref_str[i] == '[')
-        {
-            return;
-        }
-    }
-}
-
-static void DeMangleVarRefString(char *ref_str, size_t len)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        if (ref_str[i] == CF_MANGLED_NS)
-        {
-            ref_str[i] = ':';
-        }
-        else if (ref_str[i] == CF_MANGLED_SCOPE)
-        {
-            ref_str[i] = '.';
-        }
-        else if (ref_str[i] == '[')
-        {
-            return;
-        }
-    }
-}
 
 /**
  * @brief Like @c StringAppend, but replace characters @c '*' and @c '#' with their visible counterparts.
@@ -517,11 +485,13 @@ static void RlistConcatInto(Rlist **dest,
 }
 
 /**
+ * @TODO #s is not const, it is modified!
+ *
  * Parses the string #s and finds all iterables (containers and slists) as
  * well as all of the scalars.
  *
  * The names of the variables are returned in parameters #scalars, #lists,
- * #containers and they are *mangled* (see comments and function
+ * #containers and they are *mangled* (see comments here and function
  * MangleVarRefString()).
  *
  * @param full_expansion must be NULL, it's only used internally in the
@@ -625,9 +595,6 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                     const char *inner_ref_str = RlistScalarValue(exp);
                     VarRef *inner_ref = VarRefParseFromBundle(inner_ref_str, bundle);
 
-                    // var is the expanded name of the variable in its native context
-                    // finalname will be the mapped name in the local context "this."
-
                     DataType value_type = CF_DATA_TYPE_NONE;
                     const void *value = EvalContextVariableGet(ctx, inner_ref, &value_type);
                     if (value)
@@ -705,7 +672,7 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                     *full_expansion = tmp_list;
                     tmp_list = NULL;
                 }
-
+//HEREITIS
                 /* Mangle the namespaced/scoped variables.  No need to map
                    "this.*" even though it's technically qualified. */
                 if (success && IsQualifiedVariable(BufferData(value)) && strcmp(ref->scope, "this") != 0)
@@ -897,6 +864,9 @@ Rval ExpandBundleReference(EvalContext *ctx,
 char *ExpandScalar(const EvalContext *ctx, const char *ns, const char *scope,
                    const char *string, Buffer *out)
 {
+    Log(LOG_LEVEL_DEBUG, "ExpandScalar(%s : %s . %s)",
+        SAFENULL(ns), SAFENULL(scope), string);
+
     bool out_belongs_to_us = false;
 
     if (out == NULL)
@@ -1111,6 +1081,7 @@ Rval EvaluateFinalRval(EvalContext *ctx, const Policy *policy,
 
 /*********************************************************************/
 
+#if 0
 /**
  * Write variable values to EvalContext, for all variables that have been
  * mangled from ExpandAndMapIteratorsFromScalar().
@@ -1165,7 +1136,7 @@ static void CopyLocalizedReferencesToBundleScope(EvalContext *ctx,
         }
     }
 }
-
+#endif
 void BundleResolvePromiseType(EvalContext *ctx, const Bundle *bundle, const char *type, PromiseActuator *actuator)
 {
     for (size_t j = 0; j < SeqLength(bundle->promise_types); j++)

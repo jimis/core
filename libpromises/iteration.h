@@ -38,7 +38,7 @@ typedef struct PromiseIterator_ PromiseIterator;
 PromiseIterator *PromiseIteratorNew(const Promise *pp);
 void PromiseIteratorDestroy(PromiseIterator *iterctx);
 void PromiseIteratorPrepare(PromiseIterator *iterctx,
-                            const char *s);
+                            char *s);
 bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx);
 size_t PromiseIteratorIndex(const PromiseIterator *iter_ctx);
 
