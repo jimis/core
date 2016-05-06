@@ -24,8 +24,10 @@
 #include <variable.h>
 
 #include <map.h>
+#include <string_lib.h>                                         /* SAFENULL */
 #include <rlist.h>
 #include <writer.h>
+#include <conversion.h>                                 /* DataTypeToString */
 
 
 static void VariableDestroy(Variable *var);                 /* forward declaration */
@@ -98,13 +100,37 @@ void VariableTableDestroy(VariableTable *table)
 Variable *VariableTableGet(const VariableTable *table, const VarRef *ref)
 {
     Variable *v = VarMapGet(table->vars, ref);
-
     char *s = VarRefToString(ref, true);
-    Log(LOG_LEVEL_DEBUG, "VariableTableGet(%s): %s",
-        s ? s : "NULL",
-        v ? (v->rval.type==RVAL_TYPE_SCALAR?(char*)v->rval.item:"found") : "NOT FOUND");
-    free(s);
 
+    if (LogGetGlobalLevel() >= LOG_LEVEL_DEBUG)
+    {
+        Buffer *buf = BufferNew();
+        BufferPrintf(buf, "VariableTableGet(%s): %s", s,
+                     v ? DataTypeToString(v->type) : "NOT FOUND");
+        if (v != NULL)
+        {
+            char *value_s;
+            BufferAppendString(buf, "  => ");
+            if (DataTypeIsIterable(v->type) &&
+                v->rval.item == NULL)
+            {
+                value_s = xstrdup("EMPTY");
+            }
+            else
+            {
+                value_s = RvalToString(v->rval);
+            }
+
+            BufferAppendString(buf, value_s);
+            free(value_s);
+        }
+
+        Log(LOG_LEVEL_DEBUG, "%s", BufferGet(buf));
+
+        BufferDestroy(buf);
+    }
+
+    free(s);
     return v;
 }
 
@@ -140,9 +166,14 @@ bool VariableTablePut(VariableTable *table, const VarRef *ref,
 {
     assert(VarRefIsQualified(ref));
 
-    Log(LOG_LEVEL_DEBUG, "VariableTablePut(%s)%s%s", ref->lval,
-        type == CF_DATA_TYPE_STRING ? " = " : "",
-        type == CF_DATA_TYPE_STRING ? RvalScalarValue(*rval) : "");
+    if (LogGetGlobalLevel() >= LOG_LEVEL_DEBUG)
+    {
+        char *value_s = RvalToString(*rval);
+        Log(LOG_LEVEL_DEBUG, "VariableTablePut(%s): %s  => %s",
+            ref->lval, DataTypeToString(type),
+            rval->item ? value_s : "EMPTY");
+        free(value_s);
+    }
 
     Variable *var = VariableNew(VarRefCopy(ref), RvalCopy(*rval), type,
                                 StringSetFromString(tags, ','), promise);

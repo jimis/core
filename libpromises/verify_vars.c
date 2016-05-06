@@ -92,7 +92,7 @@ PromiseResult VerifyVarPromise(EvalContext *ctx, const Promise *pp, bool allow_d
     PromiseResult result = PROMISE_RESULT_NOOP;
     Rval rval = opts.cp_save->rval;
 
-    if (rval.item != NULL)
+    if (rval.item != NULL || rval.type == RVAL_TYPE_LIST)
     {
         DataType data_type = DataTypeFromString(opts.cp_save->lval);
 
@@ -539,12 +539,13 @@ static ConvergeVariableOptions CollectConvergeVariableOptions(EvalContext *ctx, 
             continue;
         }
 
-        if (cp->rval.item == NULL)
+        if (cp->rval.item == NULL && cp->rval.type != RVAL_TYPE_LIST)
         {
             continue;
         }
 
-        if (strcmp(cp->lval, "ifvarclass") == 0 || strcmp(cp->lval, "if") == 0)
+        if (strcmp(cp->lval, "ifvarclass") == 0 ||
+            strcmp(cp->lval, "if")         == 0)
         {
             switch (cp->rval.type)
             {
@@ -615,12 +616,14 @@ static ConvergeVariableOptions CollectConvergeVariableOptions(EvalContext *ctx, 
         }
     }
 
+#if 0
     if (opts.cp_save == NULL)
     {
         Log(LOG_LEVEL_WARNING, "Variable body for '%s' seems incomplete", pp->promiser);
         PromiseRef(LOG_LEVEL_INFO, pp);
         return opts;
     }
+#endif
 
     if (num_values > 2)
     {

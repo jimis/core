@@ -1013,10 +1013,12 @@ rval:                  IDSYNTAX
                      | list
                        {
                            ParserDebug("\tP:%s:%s:%s:%s install list =  %s\n", P.block, P.blocktype, P.blockid, P.currentclasses ? P.currentclasses : "any", P.lval);
+#if 0
                            if (RlistLen(P.currentRlist) == 0)
                            {
                                RlistAppendScalar(&P.currentRlist, CF_NULL_VALUE);
                            }
+#endif
                            RvalDestroy(P.rval);
                            P.rval = (Rval) { RlistCopy(P.currentRlist), RVAL_TYPE_LIST };
                            RlistDestroy(P.currentRlist);

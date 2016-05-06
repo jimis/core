@@ -2188,6 +2188,8 @@ static FnCallResult FnCallGetIndices(EvalContext *ctx, ARG_UNUSED const Policy *
         EvalContextVariableGet(ctx, ref, &type);
         VarRefDestroy(ref);
 
+        /* Special handling for getindices in one dimension of an array - this
+         * regex matches for example with array[dim1]. */
         if (type != CF_DATA_TYPE_CONTAINER &&
             StringMatchFull(".*[a-zA-Z0-9_](\\[[a-zA-Z0-9_]+\\])+$", name_str))
         {
@@ -2746,12 +2748,12 @@ static FnCallResult FnCallMapData(EvalContext *ctx, ARG_UNUSED const Policy *pol
     JsonDestroyMaybe(container, allocated);
 
     JsonElement *returnjson = NULL;
-
+#if 0
     if (returnlist == NULL && !mapdatamode)
     {
         RlistAppendScalarIdemp(&returnlist, CF_NULL_VALUE);
     }
-
+#endif
     // this is mapdata()
     if (mapdatamode)
     {

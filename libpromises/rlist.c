@@ -342,6 +342,17 @@ Rlist *RlistAppendRval(Rlist **start, Rval rval)
     return rp;
 }
 
+/* Inserts an Rlist node with value #rval, right after the rlist node #node. */
+void RlistInsertAfter(Rlist *node, Rval rval)
+{
+    assert(node != NULL);
+
+    Rlist new_node = { .val  = rval,
+                       .next = node->next };
+
+    node->next = xmemdup(&new_node, sizeof(new_node));
+}
+
 Rval RvalNewRewriter(const void *item, RvalType type, JsonElement *map)
 {
     switch (type)
@@ -1450,66 +1461,66 @@ JsonElement *RvalToJson(Rval rval)
  */
 void RlistFlatten(EvalContext *ctx, Rlist **list)
 {
-    Rlist *prev = NULL, *next;
+    Rlist *next;
     for (Rlist *rp = *list; rp != NULL; rp = next)
     {
         next = rp->next;
-        if (rp->val.type != RVAL_TYPE_SCALAR)
-        {
-            prev = rp;
-            continue;
-        }
 
-        char naked[CF_BUFSIZE] = "";
-        if (IsNakedVar(RlistScalarValue(rp), '@'))
+        if (rp->val.type == RVAL_TYPE_SCALAR      &&
+            IsNakedVar(RlistScalarValue(rp), '@'))
         {
+            char naked[CF_MAXVARSIZE];
             GetNaked(naked, RlistScalarValue(rp));
 
+            /* Make sure there are no inner expansions to take place, like if
+             * rp was "@{blah_$(blue)}".  */
             if (!IsExpandable(naked))
             {
+                Log(LOG_LEVEL_DEBUG,
+                    "Flattening slist: %s", RlistScalarValue(rp));
+
                 VarRef *ref = VarRefParse(naked);
-                DataType value_type = CF_DATA_TYPE_NONE;
+                DataType value_type;
                 const void *value = EvalContextVariableGet(ctx, ref, &value_type);
                 VarRefDestroy(ref);
 
-                if (value)
+                if (value_type == CF_DATA_TYPE_NONE)
                 {
-                    switch (DataTypeToRvalType(value_type))
-                    {
-                    case RVAL_TYPE_LIST:
-                        {
-                            RlistDestroyEntry(list, rp);
-
-                            for (const Rlist *srp = value; srp != NULL; srp = srp->next)
-                            {
-                                Rlist *nrp = xmalloc(sizeof(Rlist));
-                                nrp->val = RvalCopy(srp->val);
-                                nrp->next = next;
-
-                                if (prev)
-                                {
-                                    prev->next = nrp;
-                                }
-                                else
-                                {
-                                    *list = nrp;
-                                }
-
-                                prev = nrp;
-                            }
-                        }
-                        continue;
-
-                    default:
-                        Log(LOG_LEVEL_WARNING, "Attempted to dereference variable '%s' using @ but variable did not resolve to a list",
-                            RlistScalarValue(rp));
-                        break;
-                    }
+                    assert(value == NULL);
+                    continue;                         /* undefined variable */
                 }
+
+                if (DataTypeToRvalType(value_type) != RVAL_TYPE_LIST)
+                {
+                    Log(LOG_LEVEL_WARNING,
+                        "'%s' failed - variable is not list but %s",
+                        RlistScalarValue(rp), DataTypeToString(value_type));
+                    continue;
+                }
+
+                /* NOTE: Remember that value can be NULL as an empty Rlist. */
+
+                /* at_node: just a mnemonic name for the
+                            list node with @{blah}. */
+                Rlist *at_node      = rp;
+                Rlist *insert_after = at_node;
+                for (const Rlist *rp2 = value; rp2 != NULL; rp2 = rp2->next)
+                {
+                    assert(insert_after != NULL);
+
+                    RlistInsertAfter(insert_after, RvalCopy(rp2->val));
+                    insert_after = insert_after->next;
+                }
+
+                RlistDestroyEntry(list, at_node);   /* Delete @{blah} entry */
+                /* Make sure we won't miss any element. */
+                assert(insert_after->next == next);
+
+                char *list_s = RlistToString(*list);
+                Log(LOG_LEVEL_DEBUG, "Flattened slist: %s", list_s);
+                free(list_s);
             }
         }
-
-        prev = rp;
     }
 }
 

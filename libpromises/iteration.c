@@ -32,6 +32,7 @@
 #include <string_lib.h>
 #include <assoc.h>
 #include <expand.h>
+#include <conversion.h>                               /* DataTypeIsIterable */
 
 
 typedef struct {
@@ -103,6 +104,7 @@ static void WheelValuesSeqDestroy(Wheel *w)
             }
         }
         SeqDestroy(w->values);
+        w->values = NULL;
     }
 }
 
@@ -218,8 +220,7 @@ static void MangleVarRefString(char *ref_str, size_t len)
 
     bool mangled_scope = false;
     char *scope = memchr(ref_str2, '.', upto);
-    if (scope != NULL         &&
-        scope - ref_str2 != 4 &&
+    if (scope != NULL    &&
         strncmp(ref_str2, "this", 4) != 0)
     {
         *scope = CF_MANGLED_SCOPE;
@@ -254,21 +255,6 @@ static void DeMangleVarRefString(char *ref_str, size_t len)
     }
 }
 #endif
-
-bool IsIterable(DataType t)
-{
-    if (t == CF_DATA_TYPE_STRING_LIST ||
-        t == CF_DATA_TYPE_INT_LIST    ||
-        t == CF_DATA_TYPE_REAL_LIST   ||
-        t == CF_DATA_TYPE_CONTAINER)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
 
 /**
  * Recursive function that adds wheels to the iteration engine, according to
@@ -703,10 +689,24 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             WheelValuesSeqDestroy(wheel);           /* free previous values */
 
             /* Set wheel values and size according to variable type. */
-            if (IsIterable(t))
+            if (DataTypeIsIterable(t))
             {
                 wheel->values = IterableToSeq(value, t);
                 wheel->vartype = t;
+
+                if (SeqLength(wheel->values) == 0)
+                {
+                    /* If for example we have an empty slist in the iteration
+                     * string, then we shouldn't iterate at
+                     * all. Multiplication: zero times whatever equals zero,
+                     * after all! */
+                    Log(LOG_LEVEL_VERBOSE,
+                        "Skipping iterations since variable resolves to zero-element list");
+                    /* TODO what if it was the subvariable resulting to empty
+                     * list? For example promiser "$(A[$(i)])" has A[0] non
+                     * empty and A[1] empty. */
+                    return false;
+                }
 
                 /* Put the first value of the iterable. */
                 IterListElementVariablePut(evalctx, varname, t,
@@ -734,7 +734,7 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             /* The variable name expanded to the same name, so the value is
              * the same and wheel->values is already correct. So if it's an
              * iterable, we VariablePut() the first element. */
-            if (wheel->values != NULL)
+            if (wheel->values != NULL && SeqLength(wheel->values) > 0)
             {
                 /* Put the first value of the iterable. */
                 IterListElementVariablePut(evalctx,

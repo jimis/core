@@ -49,6 +49,7 @@
 #include <printsize.h>
 #include <regex.h>
 #include <map.h>
+#include <conversion.h>                               /* DataTypeIsIterable */
 
 
 /**
@@ -1846,11 +1847,10 @@ bool EvalContextVariablePut(EvalContext *ctx,
     assert(type != CF_DATA_TYPE_NONE);
     assert(ref);
     assert(ref->lval);
-    assert(value);
-    if (!value)
-    {
-        return false;
-    }
+
+    /* The only possible way to get a NULL value is if it's an empty linked
+     * list (Rlist usually). */
+    assert(value != NULL || DataTypeIsIterable(type));
 
     if (strlen(ref->lval) > CF_MAXVARSIZE)
     {

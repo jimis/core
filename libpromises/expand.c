@@ -864,7 +864,7 @@ Rval ExpandBundleReference(EvalContext *ctx,
 char *ExpandScalar(const EvalContext *ctx, const char *ns, const char *scope,
                    const char *string, Buffer *out)
 {
-    Log(LOG_LEVEL_DEBUG, "ExpandScalar(%s : %s . %s)",
+    Log(LOG_LEVEL_DEBUG, "ExpandScalar( %s : %s . %s )",
         SAFENULL(ns), SAFENULL(scope), string);
 
     bool out_belongs_to_us = false;
@@ -1592,18 +1592,21 @@ bool IsNakedVar(const char *str, char vtype)
 
 /*********************************************************************/
 
+/* Copy @(listname) -> listname. */
 void GetNaked(char *s2, const char *s1)
-/* copy @(listname) -> listname */
 {
-    if (strlen(s1) < 4)
+    size_t s1_len = strlen(s1);
+
+    if (s1_len < 4  ||  s1_len + 3 >= CF_MAXVARSIZE)
     {
-        Log(LOG_LEVEL_ERR, "Naked variable expected, but '%s' is malformed", s1);
+        Log(LOG_LEVEL_ERR,
+            "@(variable) expected, but got malformed: %s", s1);
         strlcpy(s2, s1, CF_MAXVARSIZE);
         return;
     }
 
-    memset(s2, 0, CF_MAXVARSIZE);
-    strncpy(s2, s1 + 2, strlen(s1) - 3);
+    memcpy(s2, &s1[2], s1_len - 3);
+    s2[s1_len - 3] = '\0';
 }
 
 /*********************************************************************/
