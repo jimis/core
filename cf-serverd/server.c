@@ -362,7 +362,7 @@ static void *HandleConnection(void *c)
              protocol_version > CF_PROTOCOL_UNDEFINED)
     {
         /* This connection is legacy protocol. Do we allow it? */
-        if (SV.allowlegacyconnects != NULL &&           /* By default we do */
+        if (SV.allowlegacyconnects_is_set &&           /* By default we do */
             !IsMatchItemIn(SV.allowlegacyconnects, conn->ipaddr))
         {
             Log(LOG_LEVEL_INFO,

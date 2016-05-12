@@ -52,10 +52,10 @@ static void ExpandAndMapIteratorsFromScalar(const EvalContext *ctx,
                                             Rlist **scalars, Rlist **lists,
                                             Rlist **containers,
                                             Rlist **full_expansion);
-#endif
 static void CopyLocalizedReferencesToBundleScope(EvalContext *ctx,
                                                  const Bundle *bundle,
                                                  const Rlist *ref_names);
+#endif
 
 /*
 
@@ -804,7 +804,7 @@ Rval ExpandPrivateRval(EvalContext *ctx,
     {
     case RVAL_TYPE_SCALAR:
         returnval.item = ExpandScalar(ctx, ns, scope, rval_item, NULL);
-        returnval.type = RVAL_TYPE_SCALAR ;
+        returnval.type = RVAL_TYPE_SCALAR;
         break;
     case RVAL_TYPE_LIST:
         returnval.item = ExpandList(ctx, ns, scope, rval_item, true);

@@ -173,11 +173,11 @@ void AddPackageModuleToContext(const EvalContext *ctx, PackageModuleBody *pm)
 PackageModuleBody *GetPackageModuleFromContext(const EvalContext *ctx,
         const char *name)
 {
-    if (name == NULL || StringSafeEqual("cf_null", name))
+    if (name == NULL)
     {
         return NULL;
     }
-    
+
     for (int i = 0;
          i < SeqLength(ctx->package_promise_context->package_modules_bodies);
          i++)

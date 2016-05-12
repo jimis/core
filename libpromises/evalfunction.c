@@ -248,8 +248,7 @@ static JsonElement* VarRefValueToJson(EvalContext *ctx, const FnCall *fp, const 
             convert = JsonArrayCreate(RlistLen(value));
             for (const Rlist *rp = value; rp != NULL; rp = rp->next)
             {
-                if (rp->val.type == RVAL_TYPE_SCALAR &&
-                    strcmp(RlistScalarValue(rp), CF_NULL_VALUE) != 0)
+                if (rp->val.type == RVAL_TYPE_SCALAR) /* TODO what if it's an ilist */
                 {
                     JsonArrayAppendString(convert, RlistScalarValue(rp));
                 }
@@ -265,17 +264,23 @@ static JsonElement* VarRefValueToJson(EvalContext *ctx, const FnCall *fp, const 
             break;
 
         case RVAL_TYPE_SCALAR:
+        {
+            const char* data = value;
             if (allow_scalars)
             {
-                const char* data = value;
-                if (strcmp(data, CF_NULL_VALUE) != 0)
-                {
-                    convert = JsonStringCreate(data);
-                    break;
-                }
+                convert = JsonStringCreate(value);
+                *allocated = true;
+                break;
             }
-            *allocated = true;
-
+#if 0
+            else
+            {
+                Log(LOG_LEVEL_DEBUG,
+                    "Skipping scalar '%s' because 'allow_scalars' is false",
+                    data);
+            }
+#endif
+        }
         default:
             *allocated = true;
 
@@ -324,8 +329,7 @@ static JsonElement* VarRefValueToJson(EvalContext *ctx, const FnCall *fp, const 
                             JsonElement *array = JsonArrayCreate(10);
                             for (const Rlist *rp = RvalRlistValue(var->rval); rp != NULL; rp = rp->next)
                             {
-                                if (rp->val.type == RVAL_TYPE_SCALAR &&
-                                    strcmp(RlistScalarValue(rp), CF_NULL_VALUE) != 0)
+                                if (rp->val.type == RVAL_TYPE_SCALAR)
                                 {
                                     JsonArrayAppendString(array, RlistScalarValue(rp));
                                 }
@@ -4602,14 +4606,7 @@ static FnCallResult FnCallFormat(EvalContext *ctx, ARG_UNUSED const Policy *poli
                                 for (const Rlist *rp = list; rp; rp = rp->next)
                                 {
                                     char *escaped = EscapeCharCopy(RlistScalarValue(rp), '"', '\\');
-                                    if (0 == strcmp(escaped, CF_NULL_VALUE))
-                                    {
-                                        WriterWrite(w, "--empty-list--");
-                                    }
-                                    else
-                                    {
-                                        WriterWriteF(w, "\"%s\"", escaped);
-                                    }
+                                    WriterWriteF(w, "\"%s\"", escaped);
                                     free(escaped);
 
                                     if (NULL != rp && NULL != rp->next)

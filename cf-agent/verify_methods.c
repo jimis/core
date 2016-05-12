@@ -99,6 +99,7 @@ PromiseResult VerifyMethod(EvalContext *ctx, const Rval call, Attributes a, cons
         while (args)
         {
            ++arg_index;
+#if 0
            if (strcmp(args->val.item, CF_NULL_VALUE) == 0)
            {
                Log(LOG_LEVEL_DEBUG, "Skipping invokation of method '%s' due to null-values in argument '%d'",
@@ -106,6 +107,7 @@ PromiseResult VerifyMethod(EvalContext *ctx, const Rval call, Attributes a, cons
                BufferDestroy(method_name);
                return PROMISE_RESULT_SKIPPED;
            }
+#endif
            args = args->next;
         }
         args = fp->args;

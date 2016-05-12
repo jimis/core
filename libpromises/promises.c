@@ -569,15 +569,15 @@ Promise *ExpandDeRefPromise(EvalContext *ctx, const Promise *pp, bool *excluded)
     *excluded = false;
 
     Rval returnval = ExpandPrivateRval(ctx, NULL, "this", pp->promiser, RVAL_TYPE_SCALAR);
-    if (!returnval.item || (strcmp(returnval.item, CF_NULL_VALUE) == 0))
+    if (returnval.item == NULL)
     {
-        RvalDestroy(returnval);
-        *excluded = true;
+        *excluded = true;                                       /* TODO Log()? */
         return NULL;
     }
     Promise *pcopy = xcalloc(1, sizeof(Promise));
     pcopy->promiser = RvalScalarValue(returnval);
 
+    /* TODO remove the conditions here for fixing redmine#7880. */
     if ((strcmp("files", pp->parent_promise_type->name) != 0) &&
         (strcmp("storage", pp->parent_promise_type->name) != 0))
     {

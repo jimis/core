@@ -1117,11 +1117,12 @@ static void KeepPromiseBundles(EvalContext *ctx, const Policy *policy, GenericAg
         {
         case RVAL_TYPE_SCALAR:
             name = RlistScalarValue(rp);
+#if 0
             if (strcmp(name, CF_NULL_VALUE) == 0)
             {
                 continue;
             }
-
+#endif
             break;
         case RVAL_TYPE_FNCALL:
             name = RlistFnCallValue(rp)->name;
@@ -1185,11 +1186,12 @@ static void KeepPromiseBundles(EvalContext *ctx, const Policy *policy, GenericAg
             args = NULL;
             break;
         }
+#if 0
         if (!strcmp(name, CF_NULL_VALUE))
         {
             continue;
         }
-
+#endif
         EvalContextSetBundleArgs(ctx, args);
 
         const Bundle *bp = EvalContextResolveBundleExpression(ctx, policy, name, "agent");

@@ -144,12 +144,12 @@ static Policy *LoadPolicyInputFiles(EvalContext *ctx, GenericAgentConfig *config
         }
 
         const char *unresolved_input = RlistScalarValue(rp);
-
+#if 0
         if (strcmp(CF_NULL_VALUE, unresolved_input) == 0)
         {
             continue;
         }
-
+#endif
         if (IsExpandable(unresolved_input))
         {
             PolicyResolve(ctx, policy, config);
@@ -386,12 +386,12 @@ static bool VerifyBundleSequence(EvalContext *ctx, const Policy *policy, const G
             }
             continue;
         }
-
+#if 0
         if (strcmp(name, CF_NULL_VALUE) == 0)
         {
             continue;
         }
-
+#endif
         if (!config->ignore_missing_bundles && !PolicyGetBundle(policy, NULL, NULL, name))
         {
             Log(LOG_LEVEL_ERR, "Bundle '%s' listed in the bundlesequence is not a defined bundle", name);

@@ -142,8 +142,7 @@ static bool SelectClass(EvalContext *ctx, const Rlist *list, const Promise *pp)
     }
 
     /* At least in some cases we will have cf_null once list is empty. */
-    if (count == 0 ||
-        (count == 1 && strcmp(RlistScalarValue(list), "cf_null") == 0))
+    if (count == 0)
     {
         Log(LOG_LEVEL_ERR, "No classes to select on RHS");
         PromiseRef(LOG_LEVEL_ERR, pp);
@@ -157,7 +156,7 @@ static bool SelectClass(EvalContext *ctx, const Rlist *list, const Promise *pp)
         PromiseRef(LOG_LEVEL_VERBOSE, pp);
         return false;
     }
-    
+
     assert(list);
 
     char splay[CF_MAXVARSIZE];
@@ -173,7 +172,7 @@ static bool SelectClass(EvalContext *ctx, const Rlist *list, const Promise *pp)
         n--;
         list = list->next;
     }
-    
+
     /* We are not having expanded variable or list at this point,
      * so we can not set select_class. */
     if (IsExpandable(RlistScalarValue(list)))

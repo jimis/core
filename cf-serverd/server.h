@@ -65,6 +65,7 @@ typedef struct
     Item *multiconnlist;                              /* "allowallconnects" */
     Item *trustkeylist;                               /* "trustkeysfrom" */
     Item *allowlegacyconnects;
+    bool  allowlegacyconnects_is_set;
     char *allowciphers;
     char *allowtlsversion;
 

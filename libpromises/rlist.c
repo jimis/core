@@ -263,6 +263,8 @@ bool RlistMatchesRegex(const Rlist *list, const char *regex)
 // TODO: cf_null lists should not be needed
 bool RlistIsNullList(const Rlist *list)
 {
+    return (list == NULL);
+#if 0
     for (const Rlist *rp = list; rp; rp = rp->next)
     {
         if (rp->val.type != RVAL_TYPE_SCALAR)
@@ -277,6 +279,7 @@ bool RlistIsNullList(const Rlist *list)
     }
 
     return true;
+#endif
 }
 
 bool RlistIsInListOfRegex(const Rlist *list, const char *str)
@@ -713,7 +716,7 @@ typedef enum
 } state;
 
 #define CLASS_BLANK(x)  (((x)==' ')||((x)=='\t'))
-#define CLASS_START1(x) (((x)=='\'')) 
+#define CLASS_START1(x) (((x)=='\''))
 #define CLASS_START2(x) (((x)=='"'))
 #define CLASS_END1(x)   ((CLASS_START1(x)))
 #define CLASS_END2(x)   ((CLASS_START2(x)))
@@ -733,7 +736,7 @@ typedef enum
 
 /**
  @brief parse elements in a list passed through use_module
- 
+
  @param[in] str: is the string to parse
  @param[out] newlist: rlist of elements found
 
@@ -762,7 +765,7 @@ static int LaunchParsingMachine(const char *str, Rlist **newlist)
                 {
                     current_state = ST_OPENED;
                 }
-                else if (CLASS_BRA1(*s)) 
+                else if (CLASS_BRA1(*s))
                 {
                     current_state = ST_IO;
                 }
@@ -1424,7 +1427,7 @@ static JsonElement *RlistToJson(Rlist *list)
             break;
 
         default:
-            assert(false && "Unsupported item type in rlist");
+            ProgrammingError("Unsupported item type in rlist");
             break;
         }
     }
@@ -1434,7 +1437,8 @@ static JsonElement *RlistToJson(Rlist *list)
 
 JsonElement *RvalToJson(Rval rval)
 {
-    assert(rval.item);
+    /* Only empty Rlist can be NULL. */
+    assert(rval.item || rval.type == RVAL_TYPE_LIST);
 
     switch (rval.type)
     {
@@ -1577,4 +1581,3 @@ bool RlistEqual_untyped(const void *list1, const void *list2)
 {
     return RlistEqual(list1, list2);
 }
-
