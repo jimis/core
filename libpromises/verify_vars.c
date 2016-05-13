@@ -615,19 +615,20 @@ static ConvergeVariableOptions CollectConvergeVariableOptions(EvalContext *ctx, 
             opts.cp_save = cp;
         }
     }
-
-#if 0
+#if 1
     if (opts.cp_save == NULL)
     {
-        Log(LOG_LEVEL_WARNING, "Variable body for '%s' seems incomplete", pp->promiser);
+        Log(LOG_LEVEL_WARNING, "Incomplete vars promise: %s",
+            pp->promiser);
         PromiseRef(LOG_LEVEL_INFO, pp);
         return opts;
     }
 #endif
-
     if (num_values > 2)
     {
-        Log(LOG_LEVEL_ERR, "Variable '%s' breaks its own promise with multiple values (code %d)", pp->promiser, num_values);
+        Log(LOG_LEVEL_ERR,
+            "Variable '%s' breaks its own promise with multiple values (code %d)",
+            pp->promiser, num_values);
         PromiseRef(LOG_LEVEL_ERR, pp);
         return opts;
     }

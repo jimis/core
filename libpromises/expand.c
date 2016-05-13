@@ -151,7 +151,7 @@ void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bund
     {
     case RVAL_TYPE_SCALAR:
     {
-        PromiseIteratorPrepare(iterctx, RvalScalarValue(rval));
+        PromiseIteratorPrepare(iterctx, ctx, RvalScalarValue(rval));
         /* const char *s = RvalScalarValue(rval); */
         /* ExpandAndMapIteratorsFromScalar(ctx, bundle, s, strlen(s), */
         /*                                 0, scalars, lists, containers, NULL); */
@@ -168,16 +168,29 @@ void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bund
     case RVAL_TYPE_FNCALL:
     {
         char *fn_name = RvalFnCallValue(rval)->name;
-        PromiseIteratorPrepare(iterctx, fn_name);
+        PromiseIteratorPrepare(iterctx, ctx, fn_name);
         /* ExpandAndMapIteratorsFromScalar(ctx, bundle, fn_name, strlen(fn_name), */
         /*                                 0, scalars, lists, containers, NULL); */
 
         /* Check each of the function arguments. */
+        /* EXCEPT on functions that use special variables: the mangled
+         * variables would never be resolved if they contain inner special
+         * variables (for example "$(bundle.A[$(this.k)])" and the returned
+         * slist would contained mangled vars like "bundle#A[1]" which would
+         * never resolve in future iterations. By skipping the iteration
+         * engine for now, the function returns an slist with unmangled
+         * entries, and the iteration engine works correctly on the next
+         * pass! */
+        if (strcmp(fn_name, "maplist") != 0 &&
+            strcmp(fn_name, "mapdata") != 0 &&
+            strcmp(fn_name, "maparray")!= 0)
+        {
         for (Rlist *rp = RvalFnCallValue(rval)->args;
              rp != NULL;  rp = rp->next)
         {
             MapIteratorsFromRval(ctx, iterctx, bundle, rp->val,
                                  scalars, lists, containers);
+        }
         }
         break;
     }
@@ -191,19 +204,14 @@ void MapIteratorsFromRval(EvalContext *ctx, PromiseIterator *iterctx, const Bund
 
 static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterctx, const Promise *pp,
                                         Rlist *lists, Rlist *containers,
-                                        PromiseActuator *ActOnPromise, void *param)
+                                        PromiseActuator *act_on_promise, void *param)
 {
     PromiseResult result = PROMISE_RESULT_SKIPPED;
 
     /* TODO no need to iterate for non vars/classes promises during
-     * pre-eval, i.e. if ActOnPromise is CommonEvalPromise(). */
+     * pre-eval, i.e. if act_on_promise is CommonEvalPromise(). */
     while (PromiseIteratorNext(iterctx, ctx))
     {
-        /* if (!PromiseIteratorNext(iterctx, ctx)) */
-        /* { */
-        /*     break; */
-        /* } */
-
         /*
          * ACTUAL WORK PART 1: Get a (another) copy of the promise. lots of
          * hidden stuff in this function.
@@ -220,19 +228,15 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
             continue;
         }
 
-        /* Put all wheel variables into the EvalContext. TOO LATE? Does it
-         * have to happen before ExpandDeRefPromise()? */
-//        PromiseIteratorUpdateVariables(ctx, iter_ctx);
-
         /* ACTUAL WORK PART 2: run the actuator */
-        PromiseResult iteration_result = ActOnPromise(ctx, pexp, param);
+        PromiseResult iteration_result = act_on_promise(ctx, pexp, param);
 
         /* iteration_result is always NOOP for PRE-EVAL. */
         result = PromiseResultUpdate(result, iteration_result);
 
         /* Redmine#6484: Do not store promise handles during PRE-EVAL, to
          *               avoid package promise always running. */
-        if (ActOnPromise != &CommonEvalPromise)
+        if (act_on_promise != &CommonEvalPromise)
         {
             NotifyDependantPromises(ctx, pexp, iteration_result);
         }
@@ -257,7 +261,7 @@ static PromiseResult ExpandPromiseAndDo(EvalContext *ctx, PromiseIterator *iterc
 }
 
 PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
-                            PromiseActuator *ActOnPromise, void *param)
+                            PromiseActuator *act_on_promise, void *param)
 {
     if (!IsDefinedClass(ctx, pp->classes))
     {
@@ -299,13 +303,14 @@ PromiseResult ExpandPromise(EvalContext *ctx, const Promise *pp,
     /* 3. Now all scalars, slists and containers have been identified, and
      *    possibly mangled. Put the variable values in the EvalContext. */
 //TODO THIS IS PROBABLY STILL NEEDED but must be handled elsewhere
+//It is now down inside the iteration engine
 //    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), lists);
 //    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), scalars);
 //    CopyLocalizedReferencesToBundleScope(ctx, PromiseGetBundle(pp), containers);
 
     /* 4. GO! */
     PutHandleVariable(ctx, pcopy);
-    PromiseResult result = ExpandPromiseAndDo(ctx, iterctx, pcopy, lists, containers, ActOnPromise, param);
+    PromiseResult result = ExpandPromiseAndDo(ctx, iterctx, pcopy, lists, containers, act_on_promise, param);
 
     EvalContextStackPopFrame(ctx);
     PromiseIteratorDestroy(iterctx);
@@ -864,9 +869,6 @@ Rval ExpandBundleReference(EvalContext *ctx,
 char *ExpandScalar(const EvalContext *ctx, const char *ns, const char *scope,
                    const char *string, Buffer *out)
 {
-    Log(LOG_LEVEL_DEBUG, "ExpandScalar( %s : %s . %s )",
-        SAFENULL(ns), SAFENULL(scope), string);
-
     bool out_belongs_to_us = false;
 
     if (out == NULL)
@@ -967,6 +969,9 @@ char *ExpandScalar(const EvalContext *ctx, const char *ns, const char *scope,
     }
 
     BufferDestroy(current_item);
+
+    Log(LOG_LEVEL_DEBUG, "ExpandScalar( %s : %s . %s )  =>  %s",
+        SAFENULL(ns), SAFENULL(scope), string, BufferData(out));
 
     return out_belongs_to_us ? BufferClose(out) : BufferGet(out);
 }
@@ -1158,16 +1163,19 @@ void BundleResolvePromiseType(EvalContext *ctx, const Bundle *bundle, const char
 
 void BundleResolve(EvalContext *ctx, const Bundle *bundle)
 {
-    Log(LOG_LEVEL_DEBUG, "Resolving variables in bundle '%s' '%s'",
+    Log(LOG_LEVEL_DEBUG,
+        "Resolving classes and variables in bundle '%s' '%s'",
         bundle->type, bundle->name);
 
+    /* TODO why doesn't it work if put after classes? This test fails:
+     * 00_basics/04_bundles/dynamic_bundlesequence/dynamic_inputs_based_on_class_set_using_variable_file_control_extends_inputs.cf.sub */
+    BundleResolvePromiseType(ctx, bundle, "vars",
+                             (PromiseActuator*) VerifyVarPromise);
     /* PRE-EVAL: evaluate classes of common bundles. */
     if (strcmp(bundle->type, "common") == 0)
     {
         BundleResolvePromiseType(ctx, bundle, "classes", VerifyClassPromise);
     }
-    BundleResolvePromiseType(ctx, bundle, "vars",
-                             (PromiseActuator*) VerifyVarPromise);
 }
 
 ProtocolVersion ProtocolVersionParse(const char *s)
@@ -1435,7 +1443,7 @@ void PolicyResolve(EvalContext *ctx, const Policy *policy,
             EvalContextStackPopFrame(ctx);
         }
     }
-
+#if 1    // 00_basics/03_bodies/dynamic_inputs_findfiles.cf FAILs if this is removed
     for (size_t i = 0; i < SeqLength(policy->bundles); i++)
     {
         Bundle *bundle = SeqAt(policy->bundles, i);
@@ -1446,7 +1454,7 @@ void PolicyResolve(EvalContext *ctx, const Policy *policy,
             EvalContextStackPopFrame(ctx);
         }
     }
-
+#endif
     for (size_t i = 0; i < SeqLength(policy->bodies); i++)
     {
         Body *bdp = SeqAt(policy->bodies, i);

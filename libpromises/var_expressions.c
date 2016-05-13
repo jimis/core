@@ -226,7 +226,9 @@ static size_t IndexCount(const char *var_string)
     return count;
 }
 
-VarRef *VarRefParseFromNamespaceAndScope(const char *qualified_name, const char *_ns, const char *_scope, char ns_separator, char scope_separator)
+VarRef *VarRefParseFromNamespaceAndScope(const char *qualified_name,
+                                         const char *_ns, const char *_scope,
+                                         char ns_separator, char scope_separator)
 {
     assert(qualified_name);
     char *ns = NULL;
@@ -419,9 +421,7 @@ char *VarRefToString(const VarRef *ref, bool qualified)
         BufferAppend(buf, "]", sizeof(char));
     }
 
-    char *var_string = xstrdup(BufferData(buf));
-    BufferDestroy(buf);
-    return var_string;
+    return BufferClose(buf);
 }
 
 char *VarRefMangle(const VarRef *ref)

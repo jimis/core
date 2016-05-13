@@ -53,7 +53,7 @@ typedef struct {
     Seq *values;
     /* This is the list-type of the iterable variable, and this sets the type
      * of the elements stored in Seq values. Only possibilities are INTLIST,
-     * REALLIST, SLIST (containers get converted to slists). */
+     * REALLIST, SLIST (containers get converted to slists). TODO CONTAINER and NONE as well. */
     DataType vartype;
     /* Wheel size: the value of the variable varname_exp can be a scalar
      * (wheel size 1) or an slist/container (wheel size possibly greater). So
@@ -112,7 +112,6 @@ void WheelDestroy(void *wheel)
 {
     Wheel *w = wheel;
     free(w->varname_unexp);
-//    BufferDestroy(w->varname_exp);
     free(w->varname_exp);
     WheelValuesSeqDestroy(w);
     free(w);
@@ -176,6 +175,8 @@ static char opposite(char c)
     return 0;
 }
 
+/* Check if variable reference is mangled, avoiding going into the inner
+ * variables that are being expanded, or into array indexes. */
 static bool IsMangled(const char *s)
 {
     size_t dollar_paren = FindDollarParen(s);
@@ -256,22 +257,166 @@ static void DeMangleVarRefString(char *ref_str, size_t len)
 }
 #endif
 
+
+/**
+ * Get a variable value and type. Since we are in iteration context, the
+ * scoped or namespaced variable names may be mangled, so we have to demangle
+ * them before looking them up.
+ *
+ * @TODO what if looking them up must find the mangled reference?
+ */
+static const void *IterVariableGet(const PromiseIterator *iterctx,
+                                   const EvalContext *evalctx,
+                                   const char *varname, DataType *type)
+{
+    const void *value;
+    const Bundle *bundle = PromiseGetBundle(iterctx->pp);
+//    VarRef *ref = VarRefParseFromBundle(varname,
+//                                        PromiseGetBundle(iterctx->pp));
+    VarRef *ref =
+        VarRefParseFromNamespaceAndScope(varname, bundle->ns, bundle->name,
+                                         CF_MANGLED_NS, CF_MANGLED_SCOPE);
+    /* TODO what if !IsMangled(varname) */
+    value = EvalContextVariableGet(evalctx, ref, type);
+    VarRefDestroy(ref);
+
+    if (*type == CF_DATA_TYPE_NONE)                             /* did not resolve */
+    {
+        assert(value == NULL);
+
+        if (!IsMangled(varname))
+        {
+            /* Lookup with no mangling, it might be a scoped/namespaced
+             * variable that is not an iterable, so it was not mangled in
+             * ProcessVar(). */
+            VarRef *ref2 = VarRefParse(varname);
+            value = EvalContextVariableGet(evalctx, ref2, type);
+            VarRefDestroy(ref2);
+        }
+    }
+
+    return value;
+}
+
+static bool VarIsSpecial(const char *s)
+{
+    if (strcmp(s, "this") == 0       ||
+        strcmp(s, "this.k") == 0     ||
+        strcmp(s, "this.v") == 0     ||
+        strcmp(s, "this.k[1]") == 0  ||
+        strcmp(s, "this.this") == 0)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+/**
+ * Decide whether to Mangle varname and add wheel to the iteration engine.
+ *
+ * If variable contains inner expansions -> mangle and add wheel (because you
+ *                                          don't know if it will be an
+ *                                          iterable or not - you will know
+ *                                          after inner variable is iterated)
+ *
+ *                                          TODO how to handle this later
+ *                                          when the expanded and possibly
+ *                                          mangled variable does not
+ *                                          resolve, e.g. A[4] does not
+ *                                          exist?  ==>  skip the iteration!
+ *
+ * else if it resolves to iterable -> mangle and add wheel
+ *
+ * else if it resolves to non-iterable or empty-iterable -> no mangle, no wheel
+ *
+ * else if it doesn't resolve -> no mangle, no wheel
+ *
+ * @TODO what if it is non-iterable, no-inner-expansions, but it is
+ *       namespaced/scoped? ==> *mangle*, no wheel --- NOT NEEDED AFTER ALL,
+ *       BECAUSE IterVariableGet() was modified to lookup unmangled as well as
+ *       mangled!
+ *
+ * @NOTE Important NOT MANGLE the last case for connection.ip special
+ *       variables to work correctly in cf-serverd.
+ **/
+bool ShouldAddVariableAsIterationWheel(const PromiseIterator *iterctx,
+                                       const EvalContext *evalctx,
+                                       char *varname, size_t varname_len)
+{
+    bool result;
+    /* Shorten string temporarily to the appropriate length */
+    char tmp_c = varname[varname_len];
+    varname[varname_len] = '\0';
+
+    VarRef *ref = VarRefParseFromBundle(varname,
+                                        PromiseGetBundle(iterctx->pp));
+    DataType t;
+    ARG_UNUSED const void *value = EvalContextVariableGet(evalctx, ref, &t);
+    //const void *value = IterVariableGet(iterctx, evalctx, varname, &t);
+    VarRefDestroy(ref);
+
+    size_t dollar_paren = FindDollarParen(varname);
+    if (dollar_paren < varname_len)
+    {
+        /* Varname contains inner expansions, so maybe the variable will
+         * resolve to an iterable during the iteration - must add wheel. */
+        result = true;
+    }
+    else if (DataTypeIsIterable(t))
+    {
+        result = true;
+    }
+    else if (VarIsSpecial(varname))                   /* TODO this is ugly! */
+    {
+        /* TODO mapdata() needs to be refactored to put a whole slist as
+         * "this.k". But how? It is executed *after* PromiseIteratorNext()!!! */
+        result = true;
+    }
+    else
+    {
+        /*
+         * Either varname resolves to a non-iterable, e.g. string.
+         * Or it resolves to empty iterable, e.g. empty slist "{}".
+         * Or it does not resolve.
+         *
+         * Since this variable does not contain inner expansions, this can't
+         * change during iteration of other variables. So don't add wheel -
+         * i.e. don't iterate over this variable's values.
+         */
+        result = false;
+    }
+
+    varname[varname_len] = tmp_c;                /* Restore original string */
+    return result;
+}
+
 /**
  * Recursive function that adds wheels to the iteration engine, according to
  * the variable (and possibly its inner variables) in #s.
  *
  * Another important thing it does, is *modify* the string #s, mangling all
- * scoped or namespaces variable names.
+ * scoped or namespaces variable names. Mangling is done in order to iterate
+ * over foreign variables, without modifying the foreign value. For example if
+ * "test.var" is an slist, then we mangle it as "test#var" and on each
+ * iteration we just VariablePut(test#var) in the local scope. Mangline is
+ * skipped for variables that do not resolve, since they are not to be
+ * iterated over.
  *
- * @TODO mangle only the iterables.
+ * @TODO mangle only the non-empty iterables.
  *
- * @param s is the start of a variable, right after "$(" or "${".
+ * @param s is the start of a variable name, right after "$(" or "${".
  * @param c is the character after '$', i.e. must be either '(' or '{'.
  * @return pointer to the closing parenthesis or brace of the variable, or
  *         if not found, returns a pointer to terminating '\0' of #s.
  */
-static char *ProcessVar(PromiseIterator *iterctx, char *s, char c)
+static char *ProcessVar(PromiseIterator *iterctx, const EvalContext *evalctx,
+                        char *s, char c)
 {
+    assert(c == '(' || c == '{');
+
     char closing_paren   = opposite(c);
     char *s_end    = strchrnul(s, closing_paren);
     char *next_var = s + FindDollarParen(s);
@@ -285,7 +430,7 @@ static char *ProcessVar(PromiseIterator *iterctx, char *s, char c)
         assert(next_var[0] != '\0');
         assert(next_var[1] != '\0');
 
-        char *subvar_end = ProcessVar(iterctx,
+        char *subvar_end = ProcessVar(iterctx, evalctx,
                                       &next_var[2], next_var[1]);
 
         /* Was there unbalanced paren for the inner expansion? */
@@ -315,38 +460,40 @@ static char *ProcessVar(PromiseIterator *iterctx, char *s, char c)
 
     const size_t s_len = s_end - s;
 
-    /* Change the variable name in order to mangle namespaces and scopes. */
-    /* TODO VariableGet() and mangle only if it's iterable. Also add a wheel
-     * again only if it's iterable. */
-    MangleVarRefString(s, s_len);
-
-    Wheel *new_wheel = WheelNew(s, s_len);
-
-    /* If identical variable is already inserted, it means that it has
-     * been seen before and has been inserted together with all
-     * dependencies; skip. */
-    /* It can happen if variables exist twice in a string, for example:
-       "$(i) blah $(A[$(i)])" has i variable twice. */
-
-    bool same_var_found = SeqLookup(iterctx->wheels, new_wheel,
-                                    WheelCompareUnexpanded)  !=  NULL;
-    if (same_var_found)
+    if (ShouldAddVariableAsIterationWheel(iterctx, evalctx, s, s_len))
     {
-        Log(LOG_LEVEL_DEBUG,
-            "Skipped adding iteration wheel for already existing variable: %s",
-            new_wheel->varname_unexp);
-        WheelDestroy(new_wheel);
-    }
-    else
-    {
-        /* If this variable is dependent on other variables, we've already
-         * appended the wheels of the dependencies during the recursive
-         * calls. Or it happens and this is an independent variable. So
-         * APPEND the wheel for this variable. */
-        SeqAppend(iterctx->wheels, new_wheel);
-        Log(LOG_LEVEL_DEBUG,
-            "Added iteration wheel for variable: %s",
-            new_wheel->varname_unexp);
+        /* Change the variable name in order to mangle namespaces and scopes. */
+        MangleVarRefString(s, s_len);
+
+        Wheel *new_wheel = WheelNew(s, s_len);
+
+        /* If identical variable is already inserted, it means that it has
+         * been seen before and has been inserted together with all
+         * dependencies; skip. */
+        /* It can happen if variables exist twice in a string, for example:
+           "$(i) blah $(A[$(i)])" has i variable twice. */
+
+        bool same_var_found = SeqLookup(iterctx->wheels, new_wheel,
+                                        WheelCompareUnexpanded)  !=  NULL;
+        if (same_var_found)
+        {
+            Log(LOG_LEVEL_DEBUG,
+                "Skipped adding iteration wheel for already existing variable: %s",
+                new_wheel->varname_unexp);
+            WheelDestroy(new_wheel);
+        }
+        else
+        {
+            /* If this variable is dependent on other variables, we've already
+             * appended the wheels of the dependencies during the recursive
+             * calls. Or it happens and this is an independent variable. So
+             * APPEND the wheel for this variable. */
+            SeqAppend(iterctx->wheels, new_wheel);
+            Log(LOG_LEVEL_DEBUG,
+                "Added iteration wheel %zu for variable: %s",
+                SeqLength(iterctx->wheels) - 1,
+                new_wheel->varname_unexp);
+        }
     }
 
     assert(*s_end == closing_paren);
@@ -355,7 +502,7 @@ static char *ProcessVar(PromiseIterator *iterctx, char *s, char c)
 
 /**
  *  @brief Fills up the wheels of the iterator according to the variables
- *         found in #s.
+ *         found in #s. Also mangles all namespaced/scoped variables in #s.
  *
  * @TODO TESTS
  *           ""
@@ -369,9 +516,13 @@ static char *ProcessVar(PromiseIterator *iterctx, char *s, char c)
  *           "$(blah)1$(blue)"
  *           "0($blah)1$(blue)"
  *           "0($blah)1$(blue)2"
+ *
+ * @NOTE the wheel numbers can't change once iteration started, so make sure
+ *       you call WheelIteratorPrepare() in advance, as many times it's
+ *       needed.
  */
 void PromiseIteratorPrepare(PromiseIterator *iterctx,
-//                             EvalContext *eval_ctx,
+                            const EvalContext *evalctx,
                             char *s)
 {
     Log(LOG_LEVEL_DEBUG, "PromiseIteratorPrepare(\"%s\")", s);
@@ -384,25 +535,15 @@ void PromiseIteratorPrepare(PromiseIterator *iterctx,
 
         assert(paren_or_brace == '(' || paren_or_brace == '{');
 
-        char *var_end = ProcessVar(iterctx, var_start, paren_or_brace);
+//TODO $(connection.ip) is being mangled in here, and KeepFileAccessPromise()
+//     reads the modified promiser string.
+//SOLUTION1: Avoid mangling cf-serverd prefixes
+//SOLUTION2: Demangle entries from KeepFileAccessPromise()
+//SOLUTION3: (best?) do not mangle unresolved/empty variables
+
+        char *var_end = ProcessVar(iterctx, evalctx, var_start, paren_or_brace);
 
         var_start = var_end + 1 + FindDollarParen(var_end + 1);
-    }
-}
-
-static bool WheelIncrement(PromiseIterator *iterctx, size_t i)
-{
-    Wheel *wheel = SeqAt(iterctx->wheels, i);
-
-    wheel->iter_index++;
-    if (wheel->values != NULL &&
-        wheel->iter_index < SeqLength(wheel->values))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
     }
 }
 
@@ -427,35 +568,6 @@ static void IterListElementVariablePut(EvalContext *evalctx,
     EvalContextVariablePutSpecial(evalctx, SPECIAL_SCOPE_THIS,
                                   varname, value,
                                   t, "source=promise_iteration");
-}
-
-
-/**
- * Get a variable value and type. Since we are in iteration context, the
- * scoped or namespaced variable names may be mangled, so we have to demangle
- * them before looking them up.
- *
- * @TODO what if looking them up must find the mangled reference?
- */
-const void *IterVariableGet(const PromiseIterator *iterctx,
-                            const EvalContext *evalctx,
-                            const char *varname, DataType *type)
-{
-//    VarRef *ref = VarRefParseFromBundle(varname,
-//                                        PromiseGetBundle(iterctx->pp));
-    const Bundle *bundle = PromiseGetBundle(iterctx->pp);
-    VarRef *ref =
-        VarRefParseFromNamespaceAndScope(varname, bundle->ns, bundle->name,
-                                         CF_MANGLED_NS, CF_MANGLED_SCOPE);
-//    VarRef *ref = VarRefParse(varname);
-    const void *value = EvalContextVariableGet(evalctx, ref, type);
-    if (value == NULL)                                      /* TODO remove? */
-    {
-//       ProgrammingError("Couldn't find extracted variable: %s", varname);
-    }
-
-    VarRefDestroy(ref);
-    return value;
 }
 
 static void SeqAppendContainerPrimitive(Seq *seq, const JsonElement *primitive)
@@ -553,80 +665,8 @@ Seq *IterableToSeq(const void *v, DataType t)
     }
 }
 
-/*
-void IterVariablePut(const PromiseIterator *iterctx,
-                     EvalContext *evalctx,
-                     const char *varname, const void *value, DataType type)
-{
-    EvalContextVariablePutSpecial(evalctx, SPECIAL_SCOPE_THIS,
-                                  varname, value,
-                                  t, "source=promise_iteration");
-}
-*/
-/*
- * TODO PromiseIteratorStart() that populates all the values.
- * OR even better, start it here if not already started.
- */
-
-bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
-{
-    size_t wheels_num = SeqLength(iterctx->wheels);
-
-    size_t i;                     /* which wheel we're currently working on */
-
-    if (iterctx->count > 0)         /* we've already iterated at least once */
-    {
-        if (wheels_num == 0)
-        {
-            /* nothing to iterate on, so get out after already having iterated
-             * once. */
-            return false;
-        }
-
-        /* Try incrementing the rightmost wheels first, i.e. the most
-         * dependent variables. */
-        i = wheels_num - 1;
-        while (!WheelIncrement(iterctx, i))
-        {
-            if (i == 0)
-            {
-                return false;                 /* we've iterated over everything */
-            }
-            i--;                                /* increment the previous wheel */
-        }
-
-        /*
-         * Alright, incrementing the wheel i was successful;  now:
-         *
-         * 1. add the new value of wheel i to EvalContext, (making sure that the
-         *    variable already existed but the value gets replaced). This is
-         *    basically the basic iteration step, just going to the next value of
-         *    the iterable.
-         */
-        Wheel *wheel    = SeqAt(iterctx->wheels, i);
-        void *new_value = SeqAt(wheel->values, wheel->iter_index);
-
-        IterListElementVariablePut(
-            evalctx, wheel->varname_exp, wheel->vartype, new_value);
-
-    }
-    else
-    {
-        /* If no iterations have happened yet, we initialise all wheels. */
-        i = (size_t) -1;               /* increments to 0 in the loop start */
-
-        Log(LOG_LEVEL_DEBUG,
-            "STARTING ITERATION ENGINE, ENTERING WARP SPEED");
-    }
-
-    /* TODO Run it also once when initialising, to reset everything. */
-    Log(LOG_LEVEL_DEBUG,
-        "PromiseIteratorNext(): count=%zu wheels_num=%zu current_wheel=%zd",
-        iterctx->count, wheels_num, (ssize_t) i);
-
     /*
-     * For each of the subsequent wheels (if any, or all of them on the first
-     * iteraration that i==(size_t)-1):
+     * For each of the wheels to the right of wheel_idx (including this one)
      *
      * 2. varname_exp = expand the variable name
      *    - if it's same with previous varname_exp, no need to Put()?
@@ -637,13 +677,15 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
      * 6. put varname_exp+first_value in the EvalContext
      *    (remove the previous wheel variable? Naaah...)
      */
-
+void ExpandAndPutWheelVariablesAfter(const PromiseIterator *iterctx,
+                                     EvalContext *evalctx,
+                                     size_t wheel_idx)
+{
     /* Buffer to store the expanded wheel variable name, for each wheel. */
     Buffer *tmpbuf = BufferNew();
 
-    /* TODO I could replace this loop with PutAllWheelVariables() after I've
-     * set all the wheel counters correct. */
-    for (i = i + 1; i < wheels_num; i++)
+    size_t wheels_num = SeqLength(iterctx->wheels);
+    for (size_t i = wheel_idx; i < wheels_num; i++)
     {
         Wheel *wheel = SeqAt(iterctx->wheels, i);
         BufferClear(tmpbuf);
@@ -651,28 +693,15 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
         /* Reset wheel in order to re-iterate over all combinations. */
         wheel->iter_index = 0;
 
-// TODO at this point, in the first iteration that we set up all wheels,
-// const#dirsep has not been added to THIS scope. WHY?
-// -->  As expected, because it doesn't depend on previous wheels.
-
         /* The wheel variable may depend on previous wheels, for example
          * "B_$(k)_$(v)" is dependent on variables "k" and "v", which are
-         * wheels already set (at lower 'w' index). */
+         * wheels already set (to the left, or at lower i index). */
         const char *varname = ExpandScalar(evalctx,
                                            PromiseGetNamespace(iterctx->pp),
-                                           "this",
+        /* Use NULL as scope so that we try both "this" and "bundle" scopes. */
+                                           NULL,
                                            wheel->varname_unexp, tmpbuf);
-        Log(LOG_LEVEL_DEBUG,
-            "PromiseIteratorNext(): Expanded '%s' to '%s'",
-            wheel->varname_unexp, varname);
 
-        /* No need to do anything if the variable expands to the same value as
-         * before (because possibly it doesn't have internal expansions). */
-        /* NOT TRUE, we still have to reset the counter if it's an iterable
-         * variable. */
-        /* NOT TRUE, THE FRAME HAS BEEN POPPED! Todo add the zero-sized
-         * (non-iterable) variables before iteration starts. */
-        /* NULL if it's the first iteration. */
         if (wheel->varname_exp == NULL
             || strcmp(varname, wheel->varname_exp) != 0)
         {
@@ -685,6 +714,7 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
              * expansion leads to some other expansion? Maybe we should loop here? */
             DataType t;
             const void *value = IterVariableGet(iterctx, evalctx, varname, &t);
+            wheel->vartype = t;
 
             WheelValuesSeqDestroy(wheel);           /* free previous values */
 
@@ -692,40 +722,54 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
             if (DataTypeIsIterable(t))
             {
                 wheel->values = IterableToSeq(value, t);
-                wheel->vartype = t;
 
                 if (SeqLength(wheel->values) == 0)
                 {
-                    /* If for example we have an empty slist in the iteration
-                     * string, then we shouldn't iterate at
-                     * all. Multiplication: zero times whatever equals zero,
-                     * after all! */
+                    /*
+                     * If this variable now expands to a 0-length list, then
+                     * we should skip this iteration, no matter the
+                     * other variables: "zero times whatever" multiplication
+                     * always equals zero.
+                     */
                     Log(LOG_LEVEL_VERBOSE,
-                        "Skipping iterations since variable resolves to zero-element list");
-                    /* TODO what if it was the subvariable resulting to empty
-                     * list? For example promiser "$(A[$(i)])" has A[0] non
-                     * empty and A[1] empty. */
-                    return false;
+                        "Skipping iteration since variable '%s'"
+                        " resolves to an empty list", varname);
                 }
+                else
+                {
+                    assert(          wheel->values     != NULL);
+                    assert(SeqLength(wheel->values)     > 0);
+                    assert(    SeqAt(wheel->values, 0) != NULL);
 
-                /* Put the first value of the iterable. */
-                IterListElementVariablePut(evalctx, varname, t,
-                                           SeqAt(wheel->values, 0));
+                    /* Put the first value of the iterable. */
+                    IterListElementVariablePut(evalctx, varname, t,
+                                               SeqAt(wheel->values, 0));
+                }
             }
+            /* It it's not an iterable but it is mangled: this is possibly a
+             * variable that was unresolvable during the Prepare() stage, but
+             * now resolves to a string etc. We still need to Put() it despite
+             * not being an iterable, since the mangled version is not in the
+             * EvalContext.*/
             else if (t != CF_DATA_TYPE_NONE && IsMangled(varname))
             {
-                /* wheel->vartype = t; */
-                /* wheel->values = SeqNew(1, NULL); */
-                /* SeqAppend(wheel->values, &value); */
                 EvalContextVariablePutSpecial(evalctx, SPECIAL_SCOPE_THIS,
                                               varname, value,
                                               t, "source=promise_iteration");
             }
+            /* It's not an iterable *and* it's not mangled, which means that
+             * the variable with the correct value (the only value) is already
+             * in the EvalContext, no need to Put() it again. */
+            /* TODO OR IT DOESN'T RESOLVE! */
             else
             {
-                /* No need to VariablePut() the first element of this
-                 * variable, since the variable is not an iterable and it
-                 * already exists in the EvalContext. */
+                /* Remember, if wheel->vartype is NONE, i.e. variable does not
+                 * resolve, then iteration is skipped. */
+
+                assert(!DataTypeIsIterable(t));
+                assert(t == CF_DATA_TYPE_NONE ||    /* var does not resolve */
+                       !IsMangled(varname));        /* or is not mangled */
+                /* We don't allocate Seq for non-iterables. */
                 assert(wheel->values == NULL);
             }
         }
@@ -745,20 +789,153 @@ bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
     }
 
     BufferDestroy(tmpbuf);
+}
+
+bool IteratorHasEmptyWheel(const PromiseIterator *iterctx)
+{
+    size_t wheels_num = SeqLength(iterctx->wheels);
+    for (size_t i = 0; i < wheels_num; i++)
+    {
+        Wheel *wheel  = SeqAt(iterctx->wheels, i);
+        assert(wheel != NULL);
+
+        if (VarIsSpecial(wheel->varname_unexp))       /* TODO this is ugly! */
+            return false;
+
+        /* wheel->values can be NULL when it's not an iterable and it's
+         * already Put() in EvalContext, outside of the iteration engine; this
+         * means that it has exactly one value. */
+        /* But vartype==NONE means that the wheel variable does not resolve. */
+        /* TODO NULL should only mean variable unresolved! */
+        if ((wheel->values != NULL &&
+             SeqLength(wheel->values) == 0)
+            ||
+            wheel->vartype == CF_DATA_TYPE_NONE)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* Try incrementing the rightmost wheel first that has values left to iterate on. */
+/* rightmost   i.e. the most
+ * dependent variables. */
+static size_t WheelRightmostIncrement(PromiseIterator *iterctx)
+{
+    size_t wheels_num = SeqLength(iterctx->wheels);
+    size_t i          = wheels_num;
+    Wheel *wheel;
+
+    assert(wheels_num > 0);
+
+    do
+    {
+        if (i == 0)
+        {
+            return (size_t) -1;       /* all wheels have been iterated over */
+        }
+
+        i--;
+        wheel = SeqAt(iterctx->wheels, i);
+        wheel->iter_index++;
+
+    /* wheel->values can be NULL when it's not an iterable; this means that it
+     * has exactly one value. SeqLength(values) can be 0 if for example it's
+     * an empty slist or container. */
+    /* TODO NULL values should only be unresolved variable - unresolved
+     * variable should be SeqLength()==1 */
+    } while (wheel->values == NULL ||
+             wheel->vartype == CF_DATA_TYPE_NONE ||
+             SeqLength(wheel->values) == 0 ||
+             wheel->iter_index >= SeqLength(wheel->values));
+
+    return i;                         /* return which wheel was incremented */
+}
+
+/*
+ * TODO PromiseIteratorStart() that populates all the values.
+ * OR even better, start it here if not already started.
+ */
+
+bool PromiseIteratorNext(PromiseIterator *iterctx, EvalContext *evalctx)
+{
+    size_t wheels_num = SeqLength(iterctx->wheels);
+
+    if (wheels_num == 0)
+    {
+        /*
+         * Nothing to iterate on, so get out after running the promise once.
+         * Because all promises, even if there are zero variables to be
+         * expanded in it, must be evaluated.
+         */
+
+        if (iterctx->count == 0)
+        {
+            iterctx->count++;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool done = false;
+
+    if (iterctx->count == 0)
+    {
+        Log(LOG_LEVEL_DEBUG,
+            "Starting iteration engine with %zu wheels  --- ENTERING WARP SPEED",
+            wheels_num);
+
+        /* First iteration: we initialise all wheels. */
+        ExpandAndPutWheelVariablesAfter(iterctx, evalctx, 0);
+
+        done = ! IteratorHasEmptyWheel(iterctx);
+    }
+
+    while (!done)
+    {
+        size_t i = WheelRightmostIncrement(iterctx);
+        if (i == (size_t) -1)       /* all combinations have been tried */
+        {
+            Log(LOG_LEVEL_DEBUG, "FINISHED ITERATING, WARPING OUT");
+            return false;
+        }
+
+        /*
+         * Alright, incrementing the wheel i was successful. Now Put() the
+         * new value of the variable in the EvalContext. This is the
+         * *basic iteration step*, just going to the next value of the
+         * iterable.
+         */
+        Wheel *wheel    = SeqAt(iterctx->wheels, i);
+        void *new_value = SeqAt(wheel->values, wheel->iter_index);
+
+        IterListElementVariablePut(
+            evalctx, wheel->varname_exp, wheel->vartype, new_value);
+
+        /* All the wheels to the right of the one we changed have to be reset
+         * and recomputed, in order to do all possible combinations. */
+        ExpandAndPutWheelVariablesAfter(iterctx, evalctx, i + 1);
+
+        /* If any of the wheels has no values to offer, then the
+         * iteration is skipped completely. */
+        done = ! IteratorHasEmptyWheel(iterctx);
+
+    /* TODO if not done, then we are re-Put()ing variables in the EvalContect,
+     *      hopefully overwriting the previous values, but possibly not! */
+    }
+
+    /* Log(LOG_LEVEL_DEBUG, */
+    /*     "PromiseIteratorNext(): count=%zu wheels_num=%zu current_wheel=%zd", */
+    /*     iterctx->count, wheels_num, (ssize_t) i); */
 
     iterctx->count++;
     return true;
 }
-
-
-
-
-
-
-
-
-
-
 
 
 

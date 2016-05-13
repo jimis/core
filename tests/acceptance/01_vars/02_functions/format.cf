@@ -47,7 +47,6 @@ bundle edit_line init_insert
       "key='S_123_list' value='{ \"one\", \"two\", \"\\\"three\\\"\" }'";
       "key='S_container_1' value='[null]'";
       "key='S_container_2' value='[{\"x\":123},\"yz\"]'";
-      "key='S_empty_list' value='{ --empty-list-- }'";
 }
 
 #######################################################

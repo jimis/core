@@ -252,6 +252,11 @@ static JsonElement* VarRefValueToJson(EvalContext *ctx, const FnCall *fp, const 
                 {
                     JsonArrayAppendString(convert, RlistScalarValue(rp));
                 }
+                else
+                {
+                    ProgrammingError("Ignored Rval of list type: %s",
+                        RvalTypeToString(rp->val.type));
+                }
             }
 
             *allocated = true;
@@ -272,14 +277,13 @@ static JsonElement* VarRefValueToJson(EvalContext *ctx, const FnCall *fp, const 
                 *allocated = true;
                 break;
             }
-#if 0
             else
             {
                 Log(LOG_LEVEL_DEBUG,
+//                ProgrammingError(
                     "Skipping scalar '%s' because 'allow_scalars' is false",
                     data);
             }
-#endif
         }
         default:
             *allocated = true;
@@ -2592,7 +2596,7 @@ static FnCallResult FnCallMapData(EvalContext *ctx, ARG_UNUSED const Policy *pol
         return FnFailure();
     }
 
-    bool mapdatamode = 0 == strcmp(fp->name, "mapdata");
+    bool mapdatamode = (strcmp(fp->name, "mapdata") == 0);
     Rlist *returnlist = NULL;
 
     const char *conversion;

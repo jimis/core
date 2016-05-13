@@ -37,8 +37,8 @@
 #include <ornaments.h>
 
 // TODO: remove
-#include <vars.h>
-#include <audit.h>
+#include <vars.h>                                         /* IsCf3VarString */
+#include <audit.h>                                        /* FatalError */
 
 
 static Policy *LoadPolicyFile(EvalContext *ctx, GenericAgentConfig *config, const char *policy_file,
