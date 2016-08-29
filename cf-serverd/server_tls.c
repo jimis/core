@@ -1011,7 +1011,10 @@ bool BusyWithNewProtocol(EvalContext *ctx, ServerConnectionState *conn)
         break;
     }
     case PROTOCOL_COMMAND_CALL_ME_BACK:
-        /* Server side, handing the collect call off to cf-hub. */
+        /* Hub-only, passing the collect call to cf-hub. */
+
+        Log(LOG_LEVEL_VERBOSE, "%14s %7s",
+            "Received:", "CALLBACK");
 
         if (acl_CheckExact(query_acl, "collect_calls",
                            conn->ipaddr, conn->revdns,
@@ -1023,7 +1026,8 @@ bool BusyWithNewProtocol(EvalContext *ctx, ServerConnectionState *conn)
             return false;
         }
 
-        ReceiveCollectCall(conn);
+        HandleCALLBACK(ctx, conn);
+
         /* On success that returned true; otherwise, it did all
          * relevant Log()ging.  Either way, we're no longer busy with
          * it and our caller can close the connection: */

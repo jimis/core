@@ -1842,3 +1842,19 @@ bool DoExec2(const EvalContext *ctx,
 
     return true;
 }
+
+bool HandleCALLBACK(const EvalContext *ctx, ServerConnectionState *conn)
+{
+    /* TODO speedup: cache am_policy_hub in a global bool variable right after
+     *               policy is parsed. */
+    if (!IsDefinedClass(ctx, "am_policy_hub")  &&
+        !IsDefinedClass(ctx, "policy_server"))
+    {
+        Log(LOG_LEVEL_INFO,
+            "Ignoring CALLBACK command,"
+            " as it is supported only on the Enterprise Hub");
+        return false;
+    }
+
+    return Nova_HandleCALLBACK(conn);
+}
