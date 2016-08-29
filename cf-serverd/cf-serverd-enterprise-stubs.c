@@ -52,8 +52,12 @@ ENTERPRISE_FUNC_4ARG_DEFINE_STUB(int, SetServerListenState, ARG_UNUSED EvalConte
     return InitServerPtr(queue_size);
 }
 
-ENTERPRISE_FUNC_1ARG_DEFINE_STUB(bool, ReceiveCollectCall, ARG_UNUSED ServerConnectionState *, conn)
+ENTERPRISE_FUNC_1ARG_DEFINE_STUB(bool, Nova_HandleCALLBACK,
+                                 ARG_UNUSED ServerConnectionState *, conn)
 {
+    Log(LOG_LEVEL_INFO,
+        "Ignoring CALLBACK command,"
+        " as it is supported only on the Enterprise Hub");
     return false;
 }
 

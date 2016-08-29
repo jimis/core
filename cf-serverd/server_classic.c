@@ -1636,7 +1636,8 @@ int BusyWithClassicConnection(EvalContext *ctx, ServerConnectionState *conn)
             return false;
         }
 
-        ReceiveCollectCall(conn);
+        HandleCALLBACK(ctx, conn);
+
         /* On success that returned true; otherwise, it did all
          * relevant Log()ging.  Either way, we're no longer busy with
          * it and our caller can close the connection: */
