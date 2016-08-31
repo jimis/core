@@ -29,7 +29,6 @@
 
 extern pthread_mutex_t *cft_lock;
 extern pthread_mutex_t *cft_count;
-extern pthread_mutex_t *cft_getaddr;
 extern pthread_mutex_t *cft_server_children;
 extern pthread_mutex_t *cft_server_filter;
 
