@@ -33,14 +33,12 @@ static pthread_mutex_t MUTEXES[] = /* GLOBAL_T */
     PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP,
     PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP,
     PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP,
-    PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP,
 };
 
-pthread_mutex_t *cft_lock = &MUTEXES[0]; /* GLOBAL_T */
-pthread_mutex_t *cft_count = &MUTEXES[1]; /* GLOBAL_T */
-pthread_mutex_t *cft_getaddr = &MUTEXES[2]; /* GLOBAL_T */
-pthread_mutex_t *cft_server_children = &MUTEXES[3]; /* GLOBAL_T */
-pthread_mutex_t *cft_server_filter = &MUTEXES[4]; /* GLOBAL_T */
+pthread_mutex_t *cft_lock            = &MUTEXES[0]; /* GLOBAL_T */
+pthread_mutex_t *cft_count           = &MUTEXES[1]; /* GLOBAL_T */
+pthread_mutex_t *cft_server_children = &MUTEXES[2]; /* GLOBAL_T */
+pthread_mutex_t *cft_server_filter   = &MUTEXES[3]; /* GLOBAL_T */
 
 
 int __ThreadLock(pthread_mutex_t *mutex,

@@ -108,9 +108,7 @@ int ArchiveToRepository(const char *file, Attributes attr)
         return true;
     }
 
-    ThreadLock(cft_getaddr);
     PrependItemList(&VREPOSLIST, file);
-    ThreadUnlock(cft_getaddr);
 
     if (!PathAppend(destination, sizeof(destination),
                     CanonifyName(file), FILE_SEPARATOR))
