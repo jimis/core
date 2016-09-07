@@ -93,6 +93,9 @@ libdb_la_LIBADD = libstr.la ../../libutils/libutils.la
 # Make sure that source files are compiled to separate object files libdb_la-file.o
 libdb_la_CFLAGS = $(AM_CFLAGS)
 
+EXTRA_PROGRAMS = \
+	connection_sharing_test_helper
+
 check_PROGRAMS = \
 	arg_split_test \
 	assoc_test \
@@ -178,6 +181,7 @@ check_PROGRAMS = \
 	libcompat_test \
 	split_process_line_test \
 	new_packages_promise_test \
+	connection_sharing_test \
 	iteration_test
 
 if HAVE_AVAHI_CLIENT
@@ -449,3 +453,12 @@ CLEANFILES += init_script_test_helper
 endif
 EXTRA_DIST += init_script_test_helper.c
 EXTRA_DIST += init_script_test.sh
+
+connection_sharing_test_SOURCES        = connection_sharing_test.c
+connection_sharing_test_CPPFLAGS       = $(AM_CPPFLAGS)
+EXTRA_connection_sharing_test_DEPENDENCIES = connection_sharing_test_helper
+
+connection_sharing_test_helper_SOURCES  = connection_sharing_test_helper.c
+connection_sharing_test_helper_CPPFLAGS = $(AM_CPPFLAGS)
+CLEANFILES += connection_sharing_test_helper
+EXTRA_DIST += connection_sharing_test_helper.c

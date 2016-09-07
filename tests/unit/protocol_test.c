@@ -117,7 +117,7 @@ static void test_command_parser(void)
     parsed = GetCommandClassic("SQUERY");
     assert_int_equal(expected, parsed);
     // SCALLBACK
-    expected = PROTOCOL_COMMAND_CALL_ME_BACK;
+    expected = PROTOCOL_COMMAND_OLD_CALLBACK;
     parsed = GetCommandClassic("SCALLBACK");
     assert_int_equal(expected, parsed);
     /*
@@ -432,7 +432,7 @@ static void test_command_parser(void)
     parsed = GetCommandClassic("SQUERY 123");
     assert_int_equal(expected, parsed);
     // SCALLBACK
-    expected = PROTOCOL_COMMAND_CALL_ME_BACK;
+    expected = PROTOCOL_COMMAND_OLD_CALLBACK;
     parsed = GetCommandClassic("SCALLBACK 123");
     assert_int_equal(expected, parsed);
 }

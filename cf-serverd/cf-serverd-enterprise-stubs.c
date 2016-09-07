@@ -52,12 +52,12 @@ ENTERPRISE_FUNC_4ARG_DEFINE_STUB(int, SetServerListenState, ARG_UNUSED EvalConte
     return InitServerPtr(queue_size);
 }
 
-ENTERPRISE_FUNC_1ARG_DEFINE_STUB(bool, Nova_HandleCALLBACK,
+ENTERPRISE_FUNC_1ARG_DEFINE_STUB(bool, Ent_HandleLegacyCollectCall,
                                  ARG_UNUSED ServerConnectionState *, conn)
 {
     Log(LOG_LEVEL_INFO,
-        "Ignoring CALLBACK command,"
-        " as it is supported only on the Enterprise Hub");
+        "Received legacy call-collect request,"
+        " rejecting as it's only supported on the Enterprise Hub");
     return false;
 }
 

@@ -1010,12 +1010,18 @@ bool BusyWithNewProtocol(EvalContext *ctx, ServerConnectionState *conn)
 
         break;
     }
-    case PROTOCOL_COMMAND_CALL_ME_BACK:
+    case PROTOCOL_COMMAND_OLD_CALLBACK:
         /* Hub-only, passing the collect call to cf-hub. */
 
         Log(LOG_LEVEL_VERBOSE, "%14s %7s",
-            "Received:", "CALLBACK");
+            "Received:", "SCALLBACK");
 
+#if 0                                           /* TODO somehow reject these*/
+        Log(LOG_LEVEL_INFO,
+            "Client sent deprecated 'CALLBACK' command, CLOSING CONNECTION;"
+            " you should turn off call_collect_interval for that host");
+        return false;
+#endif
         if (acl_CheckExact(query_acl, "collect_calls",
                            conn->ipaddr, conn->revdns,
                            KeyPrintableHash(ConnectionInfoKey(conn->conn_info)))
@@ -1026,12 +1032,28 @@ bool BusyWithNewProtocol(EvalContext *ctx, ServerConnectionState *conn)
             return false;
         }
 
-        HandleCALLBACK(ctx, conn);
+#ifndef __MINGW32__
 
-        /* On success that returned true; otherwise, it did all
-         * relevant Log()ging.  Either way, we're no longer busy with
-         * it and our caller can close the connection: */
+        return Ent_HandleLegacyCollectCall(conn);
+
+#else   // windows
+        Log(LOG_LEVEL_INFO,
+            "Received legacy call-collect request on windows host,"
+            " rejecting as it's only supported on the Enterprise Hub");
         return false;
+#endif
+
+        return true;
+
+    case PROTOCOL_COMMAND_CALLMEBACK:
+        /* TODO rename "collect_calls" -> "call_me_back", resource_type: query? */
+
+        return HandleCALLMEBACK(ctx, conn);
+        /* On success, that passed the file descriptor to cf-hub. TODO close
+         * socket descriptor but not TLS. On failure, we are still the primary
+         * owners of the connections. In both cases we should close the
+         * connection in the same way? (??? TODO VERIFY if we must close the
+         * connection that was passed to cf-hub ???) */
 
     case PROTOCOL_COMMAND_BAD:
 

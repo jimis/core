@@ -602,6 +602,7 @@ static void CollectCallIfDue(EvalContext *ctx)
         int waiting_queue = 0;
         int new_client = CollectCallGetPending(&waiting_queue);
         assert(new_client >= 0);
+
         if (waiting_queue > COLLECT_WINDOW)
         {
             Log(LOG_LEVEL_INFO,
@@ -615,8 +616,16 @@ static void CollectCallIfDue(EvalContext *ctx)
             ConnectionInfo *info = ConnectionInfoNew();
             assert(info);
 
-            ConnectionInfoSetSocket(info, new_client);
-            info->is_call_collect = true; /* Mark processed when done. */
+            info->sd = new_client;
+
+            /* In order to call CollectCallMarkProcessed() when done. */
+            info->is_call_collect = true;
+
+            Log(LOG_LEVEL_DEBUG,
+                "Socket descriptor returned from CollectCallGetPending(): %d",
+                info->sd);
+
+            /* TODO change POLICY_SERVER to the address of the socket. */
             ServerEntryPoint(ctx, PolicyServerGetIP(), info);
         }
     }
@@ -715,8 +724,11 @@ int StartServer(EvalContext *ctx, Policy **policy, GenericAgentConfig *config)
 
     while (!IsPendingTermination())
     {
+        /* TODO spawn a thread for each connection opened via CALLBACK. */
+//        if (len(new_callback_clients_queue) > 0)
         CollectCallIfDue(ctx);
 
+        /* TODO also wait for ex client-CALLBACK-send socket to appear in here. */
         int selected = WaitForIncoming(sd);
 
         Log(LOG_LEVEL_DEBUG, "select(): %d", selected);
@@ -734,7 +746,7 @@ int StartServer(EvalContext *ctx, Policy **policy, GenericAgentConfig *config)
             /* Is there a new connection pending at our listening socket? */
             if (selected > 0)
             {
-                AcceptAndHandle(ctx, sd);
+                AcceptAndHandle(ctx, sd);      /* TODO flag is_call_collect */
             }
         } /* else: interrupted, maybe pending termination. */
     }
