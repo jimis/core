@@ -71,6 +71,6 @@ bool DoExec2(const EvalContext *ctx,
              char *exec_args,
              char *sendbuf, size_t sendbuf_size);
 
-bool HandleCALLBACK(const EvalContext *ctx, ServerConnectionState *conn);
+bool HandleCALLMEBACK(const EvalContext *ctx, ServerConnectionState *conn);
 
 #endif  /* CFENGINE_SERVER_COMMON_H */

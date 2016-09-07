@@ -90,8 +90,7 @@ static void DeleteConn(ServerConnectionState *conn);
 
 void ServerEntryPoint(EvalContext *ctx, const char *ipaddr, ConnectionInfo *info)
 {
-    Log(LOG_LEVEL_VERBOSE,
-        "Obtained IP address of '%s' on socket %d from accept",
+    Log(LOG_LEVEL_VERBOSE, "Obtained IP address of '%s' on socket %d",
         ipaddr, ConnectionInfoSocket(info));
 
     /* TODO change nonattackerlist, attackerlist and especially connectionlist

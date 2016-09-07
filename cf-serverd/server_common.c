@@ -52,6 +52,7 @@ static const int CF_NOSIZE = -1;
 #include <cf-windows-functions.h>                  /* NovaWin_UserNameToSid */
 #include <mutex.h>                                 /* ThreadLock */
 #include <stat_cache.h>                            /* struct Stat */
+#include <connection_sharing.h>
 #include "server_access.h"
 
 
@@ -1843,18 +1844,84 @@ bool DoExec2(const EvalContext *ctx,
     return true;
 }
 
-bool HandleCALLBACK(const EvalContext *ctx, ServerConnectionState *conn)
+bool HandleCALLMEBACK(const EvalContext *ctx, ServerConnectionState *conn)
 {
     /* TODO speedup: cache am_policy_hub in a global bool variable right after
      *               policy is parsed. */
-    if (!IsDefinedClass(ctx, "am_policy_hub")  &&
-        !IsDefinedClass(ctx, "policy_server"))
+    if (!IsDefinedClass(ctx, "am_policy_hub")  ||
+        !IsDefinedClass(ctx, "policy_server")  ||
+        !IsDefinedClass(ctx, "enterprise"))
     {
         Log(LOG_LEVEL_INFO,
-            "Ignoring CALLBACK command,"
-            " as it is supported only on the Enterprise Hub");
+            "Received CALLMEBACK request, ignoring it,"
+            " as it is requires Enterprise Hub installation");
         return false;
     }
 
-    return Nova_HandleCALLBACK(conn);
+    /* To accept a call, we share the socket with cf-hub and ask it to
+     * take over; this simplifies the code in cf-serverd and lets
+     * cf-hub do the job correctly, without duplicating code and
+     * functionality all over the place. */
+
+    /* If we detect some problems with HA or if this hub is
+     * the slave, then we are not accepting CALLMEBACK requests. */
+/*TODO    if (!IsActiveOrStandAloneDirBased(GetWorkDir()))
+    {
+        Log(LOG_LEVEL_INFO,
+            "Denying call collect request due to wrong HA status");
+        return false;
+    }
+*/
+    const int sd = conn->conn_info->sd;
+    if (sd < 0)                                   /* TODO just assert this? */
+    {
+
+        Log(LOG_LEVEL_ERR,
+            "Bad socket descriptor %d when accepting CALLMEBACK request", sd);
+        return false;
+    }
+
+    Log(LOG_LEVEL_VERBOSE,
+        "Serving CALLMEBACK collect request from file descriptor %d", sd);
+
+    /* At this point we are moving ownership of CALLMEBACK connection
+     * to cf-hub. If hub is not able to handle client connection it should
+     * close the socket or inform client that connection can not be handled.
+     * See ENT-2793 for more discussions on call collect protocol.
+     *
+     * Note that we got conn->ipaddr when we accept()ed to get sd;
+     * since cf-hub won't be accept()ing, it doesn't get the chance to
+     * get that information for itself, so we have to forward the
+     * remote address along with the socket sd.
+     */
+
+    /* TODO send "CALLING_BACK please wait ..." to the client, while the connection is being passed to cf-hub? */
+
+#define CF_HUB_LOCAL_SOCKET "/var/cfengine/cf-hub-local"
+
+    const char cf_hub_path[] = CF_HUB_LOCAL_SOCKET;
+    Log(LOG_LEVEL_DEBUG, "Contacting cf-hub to hand off CALLMEBACK socket %d", sd);
+    bool result = share_connection(cf_hub_path, sd, conn->ipaddr);   /* TODO also send priority etc CALLMEBACK arguments. */
+    if (!result)
+    {
+        Log(LOG_LEVEL_INFO,
+            "Could not pass CALLMEBACK connection to cf-hub, socket %d", sd);
+
+        return false;
+    }
+
+    Log(LOG_LEVEL_DEBUG, "CALLMEBACK connection passed to cf-hub,"
+        " closing local socket %d", sd);
+
+    /* Caller shall close and dismantle the connection in this process. */
+    return false;
 }
+
+
+/*
+
+Old code in Core called:
+
+Enterprise:ReceiveCollectCall() => Nova:Nova_AcceptCollectCall() =>
+
+*/

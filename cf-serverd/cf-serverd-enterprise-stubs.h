@@ -37,8 +37,8 @@ ENTERPRISE_FUNC_4ARG_DECLARE(int, SetServerListenState, EvalContext *, ctx, size
                              InitServerFunction, InitServerPtr);
 
 typedef void (*ServerEntryPointFunction)(EvalContext *ctx, char *ipaddr, ConnectionInfo *info);
-ENTERPRISE_FUNC_1ARG_DECLARE(bool, Nova_HandleCALLBACK, ServerConnectionState *, conn);
 
+ENTERPRISE_FUNC_1ARG_DECLARE(bool, Ent_HandleLegacyCollectCall, ServerConnectionState *, conn);
 ENTERPRISE_FUNC_3ARG_DECLARE(bool, ReturnQueryData, ServerConnectionState *, conn, char *, menu, int, encrypt);
 
 ENTERPRISE_VOID_FUNC_1ARG_DECLARE(void, KeepReportDataSelectAccessPromise,

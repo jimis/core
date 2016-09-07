@@ -37,8 +37,8 @@
 #include <lastseen.h>                                 /* LastSaw1 */
 #include <files_hashes.h>                             /* HashString */
 #include <crypto.h>                                   /* HavePublicKey */
-#include <cf-serverd-enterprise-stubs.h>              /* ReceiveCollectCall */
 #include <tls_generic.h>
+#include <cf-serverd-enterprise-stubs.h>     /* Ent_HandleLegacyCollectCall */
 
 #include "server.h"                                /* ServerConnectionState */
 #include "server_common.h"                         /* ListPersistentClasses */
@@ -72,7 +72,7 @@ typedef enum
     PROTOCOL_COMMAND_CONTEXT,
     PROTOCOL_COMMAND_CONTEXT_SECURE,
     PROTOCOL_COMMAND_QUERY_SECURE,
-    PROTOCOL_COMMAND_CALL_ME_BACK,
+    PROTOCOL_COMMAND_OLD_CALLBACK,
     PROTOCOL_COMMAND_BAD
 } ProtocolCommandClassic;
 
@@ -1610,7 +1610,7 @@ int BusyWithClassicConnection(EvalContext *ctx, ServerConnectionState *conn)
 
         break;
 
-    case PROTOCOL_COMMAND_CALL_ME_BACK:
+    case PROTOCOL_COMMAND_OLD_CALLBACK:
         sscanf(recvbuffer, "SCALLBACK %u", &len);
 
         if ((len >= sizeof(out)) || (received != (len + CF_PROTO_OFFSET)))
@@ -1636,7 +1636,7 @@ int BusyWithClassicConnection(EvalContext *ctx, ServerConnectionState *conn)
             return false;
         }
 
-        HandleCALLBACK(ctx, conn);
+        Ent_HandleLegacyCollectCall(conn);
 
         /* On success that returned true; otherwise, it did all
          * relevant Log()ging.  Either way, we're no longer busy with
