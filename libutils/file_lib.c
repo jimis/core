@@ -1254,3 +1254,28 @@ bool FileSparseClose(int fd, const char *filename,
 
     return true;
 }
+
+
+/**
+ * @brief Works exactly like posix 'getline', EXCEPT it does not include
+ *        carriage return at the end.
+ *
+ * @return -1 on error OR EOF, so check.
+ *         Or bytes in buff without null terminator.
+ */
+ssize_t CfReadLine(char **buff, size_t *size, FILE *fp)
+{
+    ssize_t b = getline(buff, size, fp);
+    assert(b != 0 && "To the best of my knowledge, getline never returns zero");
+
+    if (b > 0)
+    {
+        if ((*buff)[b - 1] == '\n')
+        {
+            (*buff)[b - 1] = '\0';
+            b--;
+        }
+    }
+
+    return b;
+}

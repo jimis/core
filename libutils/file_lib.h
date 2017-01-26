@@ -125,5 +125,7 @@ bool FileSparseClose(int fd, const char *filename,
                      size_t total_bytes_written,
                      bool last_write_was_hole);
 
+ssize_t CfReadLine(char **buff, size_t *size, FILE *fp);
+
 
 #endif

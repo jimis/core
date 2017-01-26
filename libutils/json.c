@@ -2375,3 +2375,149 @@ JsonElement* StringCaptureData(pcre *pattern, const char* regex, const char* dat
     JsonObjectRemoveKey(json, "0");
     return json;
 }
+
+/**
+ * @param max_size maximum total size of file to read, set it to (size_t) -1
+ *                 for infinite.
+ */
+JsonElement *JsonParseEnvFile(const char *filename, size_t max_size)
+{
+    FILE *f = fopen(filename, "r");
+    if (f == NULL)
+    {
+        Log(LOG_LEVEL_VERBOSE, "Failed to open ENV file: %s (fopen: %s)",
+            filename, GetErrorStr());
+        return NULL;
+    }
+
+    size_t line_size = 1024;
+    size_t byte_count = 0;
+    size_t linenumber = 0;
+    JsonElement *json = JsonObjectCreate(10);
+    char *line = xmalloc(line_size);
+
+    while (getline(&line, &line_size, f) != -1)
+    {
+        linenumber++;
+        byte_count += strlen(line);
+        if (byte_count > max_size)
+        {
+            Log(LOG_LEVEL_VERBOSE, "Done reading ENV file '%s',"
+                " total byte limit %zu was exceeded at line %zu",
+                filename, max_size, linenumber);
+            break;
+        }
+
+        if (line[0] == '#' || strlen(line) == 0)
+        {
+            break;                               // skip comment or blank line
+        }
+
+        Rlist *pieces = RlistFromSplitRegex(line, "=", 2, true);
+        if (pieces       != NULL &&
+            pieces->next != NULL)
+        {
+            const char *k = RlistScalarValue(pieces);
+            const char *v = RlistScalarValue(pieces->next);
+
+            if (strlen(v) > 1 &&
+                v[0] == '"' && v[strlen(v)-1] == '"')
+            {
+                char *decoded = JsonDecodeString(v);
+                // Cut off the last character to terminate the
+                // string before the last " character.
+                decoded[strlen(decoded) - 1] = '\0';
+                // ...then append the string starting after the first "
+                // character, resulting in the string itself.
+                JsonObjectAppendString(json, k, &decoded[1]);
+                free(decoded);
+            }
+            else
+            {
+                JsonObjectAppendString(json, k, v);
+            }
+        }
+        else
+        {
+            Log(LOG_LEVEL_VERBOSE, "Skipping line %zu from ENV file '%s'"
+                " because it was not in the format k=v",
+                linenumber, filename);
+        }
+
+        RlistDestroy(pieces);
+    }
+
+    free(line);
+    bool atend = feof(f);
+    fclose(f);
+
+    if (!atend)
+    {
+        Log(LOG_LEVEL_ERR,
+            "failure while reading line %s from ENV file: %s (fread: %s)",
+            linenumber, filename, GetErrorStr());
+        JsonDestroy(json);
+        return NULL;
+    }
+
+    return json;
+}
+
+JsonElement *JsonParseCsvFile(const char *filename, size_t max_size)
+{
+    FILE *f = fopen(filename, "r");
+    if (f == NULL)
+    {
+        Log(LOG_LEVEL_VERBOSE, "Failed to open CSV file: %s (fopen: %s)",
+            filename, GetErrorStr());
+        return NULL;
+    }
+
+    JsonElement *json = JsonArrayCreate(50);
+    size_t linenumber = 0;
+    char *line;
+    while ((line = GetCsvLineNext(f)) != NULL)
+    {
+        linenumber++;
+        byte_count += strlen(line);
+
+        if (byte_count > max_size)
+        {
+            Log(LOG_LEVEL_VERBOSE, "Done reading CSV file '%s',"
+                " total byte limit %zu was exceeded at line %zu",
+                filename, max_size, linenumber);
+            free(line);
+            break;
+        }
+
+        Seq *list = SeqParseCsvString(line);
+        free(line);
+
+        if (list != NULL)
+        {
+            JsonElement *line_arr = JsonArrayCreate(SeqLength(list));
+
+            for (size_t i = 0; i < SeqLength(list); i++)
+            {
+                JsonArrayAppendString(line_arr, SeqAt(list, i));
+            }
+
+            SeqDestroy(list);
+            JsonArrayAppendArray(json, line_arr);
+        }
+    }
+
+    bool atend = feof(f);
+    fclose(f);
+
+    if (!atend)
+    {
+        Log(LOG_LEVEL_ERR,
+            "failure while reading line %s from CSV file: %s (fread: %s)",
+            linenumber, filename, GetErrorStr());
+        JsonDestroy(json);
+        return NULL;
+    }
+
+    return json;
+}
