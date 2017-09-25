@@ -624,6 +624,7 @@ dnl ######################################################################
 
 AC_CHECK_HEADERS(unistd.h stdlib.h sys/loadavg.h)
 AC_CHECK_HEADERS(sys/param.h sys/resource.h)
+AC_CHECK_HEADERS(sys/socket.h sys/un.h)
 
 # sys/param.h is required for sys/mount.h on OpenBSD
 AC_CHECK_HEADERS(sys/mount.h, [], [], [AC_INCLUDES_DEFAULT

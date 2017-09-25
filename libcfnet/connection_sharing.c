@@ -1,25 +1,10 @@
-/* #include <cf.nova.h> */
-/* #include <cf.enterprise.h> */
-
 #include <platform.h>
+
 #include <cfnet.h>
 #include <alloc.h>
 #include <logging.h>
 #include <misc_lib.h>
 #include <passopenfile.h>
-
-#include <sys/types.h>
-#ifndef __MINGW32__
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/un.h>
-#endif // __MINGW32__
-#include <unistd.h>
-#include <time.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
 
 
 /* IPC functions, over a local Unix Domain Socket (UDS), to transmit
@@ -68,13 +53,14 @@ static bool wait_for(const int uds, bool write, bool *ready)
 }
 
 
-bool share_connection(const char * path, const int descriptor,
+bool share_connection(const char *path, const int descriptor,
                       const char *message)
 {
     if (!path || (descriptor < 0) || !message)
     {
         ProgrammingError("Invalid arguments");
     }
+
     int uds = socket(AF_UNIX, SOCK_STREAM, 0);
     if (uds < 0)
     {
@@ -92,6 +78,7 @@ bool share_connection(const char * path, const int descriptor,
     }
     else
     {
+#ifndef __MINGW32__
         /* Prepare the socket */
         struct sockaddr_un remote_address;
         assert(strlen(path) < sizeof(remote_address.sun_path));
@@ -106,6 +93,10 @@ bool share_connection(const char * path, const int descriptor,
             cf_closesocket(uds);
             return false;
         }
+#else
+        Log(LOG_LEVEL_VERBOSE, "share_connection() not supported on windows");
+        return false;
+#endif
     }
 
     Log(LOG_LEVEL_VERBOSE,
