@@ -381,6 +381,10 @@ union mpinfou
 # endif
 #endif
 
+#ifdef HAVE_SYS_UN_H
+# include <sys/un.h>
+#endif
+
 #ifdef __linux__
 # ifdef HAVE_NET_ROUTE_H
 #  include <net/route.h>

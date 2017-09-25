@@ -1,15 +1,5 @@
 #include <test.h>
 
-#include <sys/select.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <wait.h>
 #include <string_lib.h>
 #include <logging.h>
 #include <connection_sharing.h>
