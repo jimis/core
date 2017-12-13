@@ -1,8 +1,34 @@
+/*
+   Copyright 2017 Northern.tech AS
+
+   This file is part of CFEngine 3 - written and maintained by Northern.tech AS.
+
+   This program is free software; you can redistribute it and/or modify it
+   under the terms of the GNU General Public License as published by the
+   Free Software Foundation; version 3.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
+
+  To the extent this program is licensed as part of the Enterprise
+  versions of CFEngine, the applicable Commercial Open Source License
+  (COSL) may apply to this file if you as a licensee so wish it. See
+  included file COSL.txt.
+*/
+
+
 #include <test.h>
 
 #include <string_lib.h>
 #include <logging.h>
 #include <connection_sharing.h>
+
 
 static char server_path[] = "/tmp/connection_sharing_test_server";
 static int server_socket = -1;
@@ -38,7 +64,8 @@ static int delete_server(void)
 {
     if (server_socket > 0)
     {
-        close (server_socket);
+        close(server_socket);
+        unlink(server_path);
     }
     return 0;
 }
@@ -60,7 +87,6 @@ int main(void)
 
     LogSetGlobalLevel(LOG_LEVEL_DEBUG);
 
-    putenv("CFENGINE_TEST_OVERRIDE_EXTENSION_LIBRARY_DIR=../../report-collect-plugin/.libs");
     if (create_server() < 0)
     {
         return -1;
@@ -90,21 +116,23 @@ int main(void)
         return -1;
     }
 
-    char *filename = NULL;
-    int fd = take_connection(client_socket, &filename);
-
+    /* Receive the file descriptor and the message. */
+    char *text = NULL;
+    int fd = take_connection(client_socket, &text);
     if (fd < 0)
     {
         return -1;
     }
-    int result = write(fd, filename, strlen(filename));
+
+    /* Write the message to the received descriptor. */
+    int result = write(fd, text, strlen(text));
     if (result < 0)
     {
         return -1;
     }
-    fsync(fd);
 
     /* Close the server */
     delete_server();
+    free(text);
     return 0;
 }

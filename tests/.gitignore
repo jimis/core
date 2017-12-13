@@ -17,6 +17,7 @@ xml_tmp_*
 /unit/*_test
 /unit/exec-config-test
 /unit/rb-tree-test
+/unit/connection_sharing_test_helper
 
 # load tests
 /load/db_load

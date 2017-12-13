@@ -78,6 +78,13 @@ bool PassOpenFile_Put(int uds, int descriptor, const char *text)
      *
      * [0] https://msdn.microsoft.com/en-us/library/windows/desktop/ms741565(v=vs.85).aspx
      */
+
+    Log(LOG_LEVEL_VERBOSE,
+        "Connected to peer, passing descriptor %d with %s %s",
+        descriptor,
+        text ? "text:" : "no",
+        text ? text : "text");
+
     WSAPROTOCOL_INFO blob;
     /* Receive pid from peer */
     char buffer[PID_MSG_SIZE + 1];
@@ -148,6 +155,8 @@ bool PassOpenFile_Put(int uds, int descriptor, const char *text)
                 "Failed to send socket-blob and accompanying text to peer");
             return false;
         }
+
+        Log(LOG_LEVEL_DEBUG, "Descriptor %d sent", descriptor);
     }
 
     /* Wait for ACK so we don't closesocket() before recipient has opened it */
@@ -184,6 +193,8 @@ bool PassOpenFile_Put(int uds, int descriptor, const char *text)
 int PassOpenFile_Get(int uds, char **text)
 {
     SOCKET descriptor = SOCKET_ERROR;
+
+    Log(LOG_LEVEL_DEBUG, "Receiving foreign descriptor from socket %d", uds);
 
     /* Deliver pid to peer over uds */
     char msg[PID_MSG_SIZE];
@@ -417,7 +428,7 @@ bool PassOpenFile_Put(int uds, int descriptor, const char *text)
     }
     else
     {
-        Log(LOG_LEVEL_VERBOSE, "Descriptor %d sent", descriptor);
+        Log(LOG_LEVEL_DEBUG, "Descriptor %d sent", descriptor);
         return true;
     }
 
@@ -456,8 +467,7 @@ int PassOpenFile_Get(int uds, char **text)
     /* Receive message: */
     if (recvmsg(uds, &message, MSG_WAITALL) < 0)
     {
-        Log(LOG_LEVEL_ERR,
-            "Can't receive descriptor (recvmsg: %s)",
+        Log(LOG_LEVEL_ERR, "Can't receive descriptor (recvmsg: %s)",
             GetErrorStr());
         return -1;
     }
@@ -503,8 +513,7 @@ int PassOpenFile_Get(int uds, char **text)
         {
             *text = xstrndup(buffer, sizeof(buffer));
         }
-        Log(LOG_LEVEL_VERBOSE,
-            "Received descriptor %d with text '%s'",
+        Log(LOG_LEVEL_VERBOSE, "Received descriptor %d with text '%s'",
             received_descriptor, buffer);
     }
     else
@@ -513,8 +522,7 @@ int PassOpenFile_Get(int uds, char **text)
         {
             *text = NULL;
         }
-        Log(LOG_LEVEL_VERBOSE,
-            "Received descriptor %d with no text",
+        Log(LOG_LEVEL_VERBOSE, "Received descriptor %d with no text",
             received_descriptor);
     }
 
